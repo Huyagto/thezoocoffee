@@ -8,10 +8,13 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.0",
     "express": "^5.2.1",
+    "googleapis": "^171.4.0",
     "jsonwebtoken": "^9.0.3",
+    "mariadb": "^3.5.2",
     "mysql2": "^3.20.0",
+    "nodemailer": "^8.0.4",
     "nodemon": "^3.1.14",
-    "prisma": "^7.6.0"
+    "otp-generator": "^4.0.1"
   },
   "scripts": {
     "start": "node src/server.js",
@@ -26,6 +29,8 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "@types/node": "^25.5.0"
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.20.0",
+    "prisma": "^7.6.0"
   }
 }

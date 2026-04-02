@@ -11,7 +11,7 @@ app.use(cor());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
-
+routes(app);
 app.use((err, req, res, next) => {
     const statusCode = err.statusCode || 500;
 
@@ -20,7 +20,7 @@ app.use((err, req, res, next) => {
         message: err.message || 'Lỗi Server',
     });
 });
-routes(app);
+
 
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`);
