@@ -230,7 +230,9 @@ exports.Prisma.UsersScalarFieldEnum = {
   address: 'address',
   role: 'role',
   created_at: 'created_at',
-  updated_at: 'updated_at'
+  updated_at: 'updated_at',
+  facebook_id: 'facebook_id',
+  google_id: 'google_id'
 };
 
 exports.Prisma.SortOrder = {
@@ -279,7 +281,9 @@ exports.Prisma.usersOrderByRelevanceFieldEnum = {
   email: 'email',
   phone: 'phone',
   password_hash: 'password_hash',
-  address: 'address'
+  address: 'address',
+  facebook_id: 'facebook_id',
+  google_id: 'google_id'
 };
 exports.categories_status = exports.$Enums.categories_status = {
   active: 'active',

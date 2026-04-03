@@ -12396,6 +12396,8 @@ export namespace Prisma {
     role: $Enums.users_role | null
     created_at: Date | null
     updated_at: Date | null
+    facebook_id: string | null
+    google_id: string | null
   }
 
   export type UsersMaxAggregateOutputType = {
@@ -12408,6 +12410,8 @@ export namespace Prisma {
     role: $Enums.users_role | null
     created_at: Date | null
     updated_at: Date | null
+    facebook_id: string | null
+    google_id: string | null
   }
 
   export type UsersCountAggregateOutputType = {
@@ -12420,6 +12424,8 @@ export namespace Prisma {
     role: number
     created_at: number
     updated_at: number
+    facebook_id: number
+    google_id: number
     _all: number
   }
 
@@ -12442,6 +12448,8 @@ export namespace Prisma {
     role?: true
     created_at?: true
     updated_at?: true
+    facebook_id?: true
+    google_id?: true
   }
 
   export type UsersMaxAggregateInputType = {
@@ -12454,6 +12462,8 @@ export namespace Prisma {
     role?: true
     created_at?: true
     updated_at?: true
+    facebook_id?: true
+    google_id?: true
   }
 
   export type UsersCountAggregateInputType = {
@@ -12466,6 +12476,8 @@ export namespace Prisma {
     role?: true
     created_at?: true
     updated_at?: true
+    facebook_id?: true
+    google_id?: true
     _all?: true
   }
 
@@ -12560,11 +12572,13 @@ export namespace Prisma {
     name: string
     email: string
     phone: string | null
-    password_hash: string
+    password_hash: string | null
     address: string | null
     role: $Enums.users_role | null
     created_at: Date | null
     updated_at: Date | null
+    facebook_id: string | null
+    google_id: string | null
     _count: UsersCountAggregateOutputType | null
     _avg: UsersAvgAggregateOutputType | null
     _sum: UsersSumAggregateOutputType | null
@@ -12596,6 +12610,8 @@ export namespace Prisma {
     role?: boolean
     created_at?: boolean
     updated_at?: boolean
+    facebook_id?: boolean
+    google_id?: boolean
     carts?: boolean | users$cartsArgs<ExtArgs>
     inventory_transactions?: boolean | users$inventory_transactionsArgs<ExtArgs>
     orders?: boolean | users$ordersArgs<ExtArgs>
@@ -12614,9 +12630,11 @@ export namespace Prisma {
     role?: boolean
     created_at?: boolean
     updated_at?: boolean
+    facebook_id?: boolean
+    google_id?: boolean
   }
 
-  export type usersOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "name" | "email" | "phone" | "password_hash" | "address" | "role" | "created_at" | "updated_at", ExtArgs["result"]["users"]>
+  export type usersOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "name" | "email" | "phone" | "password_hash" | "address" | "role" | "created_at" | "updated_at" | "facebook_id" | "google_id", ExtArgs["result"]["users"]>
   export type usersInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     carts?: boolean | users$cartsArgs<ExtArgs>
     inventory_transactions?: boolean | users$inventory_transactionsArgs<ExtArgs>
@@ -12636,11 +12654,13 @@ export namespace Prisma {
       name: string
       email: string
       phone: string | null
-      password_hash: string
+      password_hash: string | null
       address: string | null
       role: $Enums.users_role | null
       created_at: Date | null
       updated_at: Date | null
+      facebook_id: string | null
+      google_id: string | null
     }, ExtArgs["result"]["users"]>
     composites: {}
   }
@@ -13022,6 +13042,8 @@ export namespace Prisma {
     readonly role: FieldRef<"users", 'users_role'>
     readonly created_at: FieldRef<"users", 'DateTime'>
     readonly updated_at: FieldRef<"users", 'DateTime'>
+    readonly facebook_id: FieldRef<"users", 'String'>
+    readonly google_id: FieldRef<"users", 'String'>
   }
     
 
@@ -13609,7 +13631,9 @@ export namespace Prisma {
     address: 'address',
     role: 'role',
     created_at: 'created_at',
-    updated_at: 'updated_at'
+    updated_at: 'updated_at',
+    facebook_id: 'facebook_id',
+    google_id: 'google_id'
   };
 
   export type UsersScalarFieldEnum = (typeof UsersScalarFieldEnum)[keyof typeof UsersScalarFieldEnum]
@@ -13685,7 +13709,9 @@ export namespace Prisma {
     email: 'email',
     phone: 'phone',
     password_hash: 'password_hash',
-    address: 'address'
+    address: 'address',
+    facebook_id: 'facebook_id',
+    google_id: 'google_id'
   };
 
   export type usersOrderByRelevanceFieldEnum = (typeof usersOrderByRelevanceFieldEnum)[keyof typeof usersOrderByRelevanceFieldEnum]
@@ -14519,11 +14545,13 @@ export namespace Prisma {
     name?: StringFilter<"users"> | string
     email?: StringFilter<"users"> | string
     phone?: StringNullableFilter<"users"> | string | null
-    password_hash?: StringFilter<"users"> | string
+    password_hash?: StringNullableFilter<"users"> | string | null
     address?: StringNullableFilter<"users"> | string | null
     role?: Enumusers_roleNullableFilter<"users"> | $Enums.users_role | null
     created_at?: DateTimeNullableFilter<"users"> | Date | string | null
     updated_at?: DateTimeNullableFilter<"users"> | Date | string | null
+    facebook_id?: StringNullableFilter<"users"> | string | null
+    google_id?: StringNullableFilter<"users"> | string | null
     carts?: XOR<CartsNullableScalarRelationFilter, cartsWhereInput> | null
     inventory_transactions?: Inventory_transactionsListRelationFilter
     orders?: OrdersListRelationFilter
@@ -14534,11 +14562,13 @@ export namespace Prisma {
     name?: SortOrder
     email?: SortOrder
     phone?: SortOrderInput | SortOrder
-    password_hash?: SortOrder
+    password_hash?: SortOrderInput | SortOrder
     address?: SortOrderInput | SortOrder
     role?: SortOrderInput | SortOrder
     created_at?: SortOrderInput | SortOrder
     updated_at?: SortOrderInput | SortOrder
+    facebook_id?: SortOrderInput | SortOrder
+    google_id?: SortOrderInput | SortOrder
     carts?: cartsOrderByWithRelationInput
     inventory_transactions?: inventory_transactionsOrderByRelationAggregateInput
     orders?: ordersOrderByRelationAggregateInput
@@ -14548,12 +14578,14 @@ export namespace Prisma {
   export type usersWhereUniqueInput = Prisma.AtLeast<{
     id?: number
     email?: string
+    facebook_id?: string
+    google_id?: string
     AND?: usersWhereInput | usersWhereInput[]
     OR?: usersWhereInput[]
     NOT?: usersWhereInput | usersWhereInput[]
     name?: StringFilter<"users"> | string
     phone?: StringNullableFilter<"users"> | string | null
-    password_hash?: StringFilter<"users"> | string
+    password_hash?: StringNullableFilter<"users"> | string | null
     address?: StringNullableFilter<"users"> | string | null
     role?: Enumusers_roleNullableFilter<"users"> | $Enums.users_role | null
     created_at?: DateTimeNullableFilter<"users"> | Date | string | null
@@ -14561,18 +14593,20 @@ export namespace Prisma {
     carts?: XOR<CartsNullableScalarRelationFilter, cartsWhereInput> | null
     inventory_transactions?: Inventory_transactionsListRelationFilter
     orders?: OrdersListRelationFilter
-  }, "id" | "email">
+  }, "id" | "email" | "facebook_id" | "google_id">
 
   export type usersOrderByWithAggregationInput = {
     id?: SortOrder
     name?: SortOrder
     email?: SortOrder
     phone?: SortOrderInput | SortOrder
-    password_hash?: SortOrder
+    password_hash?: SortOrderInput | SortOrder
     address?: SortOrderInput | SortOrder
     role?: SortOrderInput | SortOrder
     created_at?: SortOrderInput | SortOrder
     updated_at?: SortOrderInput | SortOrder
+    facebook_id?: SortOrderInput | SortOrder
+    google_id?: SortOrderInput | SortOrder
     _count?: usersCountOrderByAggregateInput
     _avg?: usersAvgOrderByAggregateInput
     _max?: usersMaxOrderByAggregateInput
@@ -14588,11 +14622,13 @@ export namespace Prisma {
     name?: StringWithAggregatesFilter<"users"> | string
     email?: StringWithAggregatesFilter<"users"> | string
     phone?: StringNullableWithAggregatesFilter<"users"> | string | null
-    password_hash?: StringWithAggregatesFilter<"users"> | string
+    password_hash?: StringNullableWithAggregatesFilter<"users"> | string | null
     address?: StringNullableWithAggregatesFilter<"users"> | string | null
     role?: Enumusers_roleNullableWithAggregatesFilter<"users"> | $Enums.users_role | null
     created_at?: DateTimeNullableWithAggregatesFilter<"users"> | Date | string | null
     updated_at?: DateTimeNullableWithAggregatesFilter<"users"> | Date | string | null
+    facebook_id?: StringNullableWithAggregatesFilter<"users"> | string | null
+    google_id?: StringNullableWithAggregatesFilter<"users"> | string | null
   }
 
   export type cart_itemsCreateInput = {
@@ -15300,11 +15336,13 @@ export namespace Prisma {
     name: string
     email: string
     phone?: string | null
-    password_hash: string
+    password_hash?: string | null
     address?: string | null
     role?: $Enums.users_role | null
     created_at?: Date | string | null
     updated_at?: Date | string | null
+    facebook_id?: string | null
+    google_id?: string | null
     carts?: cartsCreateNestedOneWithoutUsersInput
     inventory_transactions?: inventory_transactionsCreateNestedManyWithoutUsersInput
     orders?: ordersCreateNestedManyWithoutUsersInput
@@ -15315,11 +15353,13 @@ export namespace Prisma {
     name: string
     email: string
     phone?: string | null
-    password_hash: string
+    password_hash?: string | null
     address?: string | null
     role?: $Enums.users_role | null
     created_at?: Date | string | null
     updated_at?: Date | string | null
+    facebook_id?: string | null
+    google_id?: string | null
     carts?: cartsUncheckedCreateNestedOneWithoutUsersInput
     inventory_transactions?: inventory_transactionsUncheckedCreateNestedManyWithoutUsersInput
     orders?: ordersUncheckedCreateNestedManyWithoutUsersInput
@@ -15329,11 +15369,13 @@ export namespace Prisma {
     name?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
     phone?: NullableStringFieldUpdateOperationsInput | string | null
-    password_hash?: StringFieldUpdateOperationsInput | string
+    password_hash?: NullableStringFieldUpdateOperationsInput | string | null
     address?: NullableStringFieldUpdateOperationsInput | string | null
     role?: NullableEnumusers_roleFieldUpdateOperationsInput | $Enums.users_role | null
     created_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     updated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    facebook_id?: NullableStringFieldUpdateOperationsInput | string | null
+    google_id?: NullableStringFieldUpdateOperationsInput | string | null
     carts?: cartsUpdateOneWithoutUsersNestedInput
     inventory_transactions?: inventory_transactionsUpdateManyWithoutUsersNestedInput
     orders?: ordersUpdateManyWithoutUsersNestedInput
@@ -15344,11 +15386,13 @@ export namespace Prisma {
     name?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
     phone?: NullableStringFieldUpdateOperationsInput | string | null
-    password_hash?: StringFieldUpdateOperationsInput | string
+    password_hash?: NullableStringFieldUpdateOperationsInput | string | null
     address?: NullableStringFieldUpdateOperationsInput | string | null
     role?: NullableEnumusers_roleFieldUpdateOperationsInput | $Enums.users_role | null
     created_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     updated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    facebook_id?: NullableStringFieldUpdateOperationsInput | string | null
+    google_id?: NullableStringFieldUpdateOperationsInput | string | null
     carts?: cartsUncheckedUpdateOneWithoutUsersNestedInput
     inventory_transactions?: inventory_transactionsUncheckedUpdateManyWithoutUsersNestedInput
     orders?: ordersUncheckedUpdateManyWithoutUsersNestedInput
@@ -15359,22 +15403,26 @@ export namespace Prisma {
     name: string
     email: string
     phone?: string | null
-    password_hash: string
+    password_hash?: string | null
     address?: string | null
     role?: $Enums.users_role | null
     created_at?: Date | string | null
     updated_at?: Date | string | null
+    facebook_id?: string | null
+    google_id?: string | null
   }
 
   export type usersUpdateManyMutationInput = {
     name?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
     phone?: NullableStringFieldUpdateOperationsInput | string | null
-    password_hash?: StringFieldUpdateOperationsInput | string
+    password_hash?: NullableStringFieldUpdateOperationsInput | string | null
     address?: NullableStringFieldUpdateOperationsInput | string | null
     role?: NullableEnumusers_roleFieldUpdateOperationsInput | $Enums.users_role | null
     created_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     updated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    facebook_id?: NullableStringFieldUpdateOperationsInput | string | null
+    google_id?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type usersUncheckedUpdateManyInput = {
@@ -15382,11 +15430,13 @@ export namespace Prisma {
     name?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
     phone?: NullableStringFieldUpdateOperationsInput | string | null
-    password_hash?: StringFieldUpdateOperationsInput | string
+    password_hash?: NullableStringFieldUpdateOperationsInput | string | null
     address?: NullableStringFieldUpdateOperationsInput | string | null
     role?: NullableEnumusers_roleFieldUpdateOperationsInput | $Enums.users_role | null
     created_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     updated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    facebook_id?: NullableStringFieldUpdateOperationsInput | string | null
+    google_id?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type IntFilter<$PrismaModel = never> = {
@@ -16333,6 +16383,8 @@ export namespace Prisma {
     role?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
+    facebook_id?: SortOrder
+    google_id?: SortOrder
   }
 
   export type usersAvgOrderByAggregateInput = {
@@ -16349,6 +16401,8 @@ export namespace Prisma {
     role?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
+    facebook_id?: SortOrder
+    google_id?: SortOrder
   }
 
   export type usersMinOrderByAggregateInput = {
@@ -16361,6 +16415,8 @@ export namespace Prisma {
     role?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
+    facebook_id?: SortOrder
+    google_id?: SortOrder
   }
 
   export type usersSumOrderByAggregateInput = {
@@ -17642,11 +17698,13 @@ export namespace Prisma {
     name: string
     email: string
     phone?: string | null
-    password_hash: string
+    password_hash?: string | null
     address?: string | null
     role?: $Enums.users_role | null
     created_at?: Date | string | null
     updated_at?: Date | string | null
+    facebook_id?: string | null
+    google_id?: string | null
     inventory_transactions?: inventory_transactionsCreateNestedManyWithoutUsersInput
     orders?: ordersCreateNestedManyWithoutUsersInput
   }
@@ -17656,11 +17714,13 @@ export namespace Prisma {
     name: string
     email: string
     phone?: string | null
-    password_hash: string
+    password_hash?: string | null
     address?: string | null
     role?: $Enums.users_role | null
     created_at?: Date | string | null
     updated_at?: Date | string | null
+    facebook_id?: string | null
+    google_id?: string | null
     inventory_transactions?: inventory_transactionsUncheckedCreateNestedManyWithoutUsersInput
     orders?: ordersUncheckedCreateNestedManyWithoutUsersInput
   }
@@ -17713,11 +17773,13 @@ export namespace Prisma {
     name?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
     phone?: NullableStringFieldUpdateOperationsInput | string | null
-    password_hash?: StringFieldUpdateOperationsInput | string
+    password_hash?: NullableStringFieldUpdateOperationsInput | string | null
     address?: NullableStringFieldUpdateOperationsInput | string | null
     role?: NullableEnumusers_roleFieldUpdateOperationsInput | $Enums.users_role | null
     created_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     updated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    facebook_id?: NullableStringFieldUpdateOperationsInput | string | null
+    google_id?: NullableStringFieldUpdateOperationsInput | string | null
     inventory_transactions?: inventory_transactionsUpdateManyWithoutUsersNestedInput
     orders?: ordersUpdateManyWithoutUsersNestedInput
   }
@@ -17727,11 +17789,13 @@ export namespace Prisma {
     name?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
     phone?: NullableStringFieldUpdateOperationsInput | string | null
-    password_hash?: StringFieldUpdateOperationsInput | string
+    password_hash?: NullableStringFieldUpdateOperationsInput | string | null
     address?: NullableStringFieldUpdateOperationsInput | string | null
     role?: NullableEnumusers_roleFieldUpdateOperationsInput | $Enums.users_role | null
     created_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     updated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    facebook_id?: NullableStringFieldUpdateOperationsInput | string | null
+    google_id?: NullableStringFieldUpdateOperationsInput | string | null
     inventory_transactions?: inventory_transactionsUncheckedUpdateManyWithoutUsersNestedInput
     orders?: ordersUncheckedUpdateManyWithoutUsersNestedInput
   }
@@ -17949,11 +18013,13 @@ export namespace Prisma {
     name: string
     email: string
     phone?: string | null
-    password_hash: string
+    password_hash?: string | null
     address?: string | null
     role?: $Enums.users_role | null
     created_at?: Date | string | null
     updated_at?: Date | string | null
+    facebook_id?: string | null
+    google_id?: string | null
     carts?: cartsCreateNestedOneWithoutUsersInput
     orders?: ordersCreateNestedManyWithoutUsersInput
   }
@@ -17963,11 +18029,13 @@ export namespace Prisma {
     name: string
     email: string
     phone?: string | null
-    password_hash: string
+    password_hash?: string | null
     address?: string | null
     role?: $Enums.users_role | null
     created_at?: Date | string | null
     updated_at?: Date | string | null
+    facebook_id?: string | null
+    google_id?: string | null
     carts?: cartsUncheckedCreateNestedOneWithoutUsersInput
     orders?: ordersUncheckedCreateNestedManyWithoutUsersInput
   }
@@ -18030,11 +18098,13 @@ export namespace Prisma {
     name?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
     phone?: NullableStringFieldUpdateOperationsInput | string | null
-    password_hash?: StringFieldUpdateOperationsInput | string
+    password_hash?: NullableStringFieldUpdateOperationsInput | string | null
     address?: NullableStringFieldUpdateOperationsInput | string | null
     role?: NullableEnumusers_roleFieldUpdateOperationsInput | $Enums.users_role | null
     created_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     updated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    facebook_id?: NullableStringFieldUpdateOperationsInput | string | null
+    google_id?: NullableStringFieldUpdateOperationsInput | string | null
     carts?: cartsUpdateOneWithoutUsersNestedInput
     orders?: ordersUpdateManyWithoutUsersNestedInput
   }
@@ -18044,11 +18114,13 @@ export namespace Prisma {
     name?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
     phone?: NullableStringFieldUpdateOperationsInput | string | null
-    password_hash?: StringFieldUpdateOperationsInput | string
+    password_hash?: NullableStringFieldUpdateOperationsInput | string | null
     address?: NullableStringFieldUpdateOperationsInput | string | null
     role?: NullableEnumusers_roleFieldUpdateOperationsInput | $Enums.users_role | null
     created_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     updated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    facebook_id?: NullableStringFieldUpdateOperationsInput | string | null
+    google_id?: NullableStringFieldUpdateOperationsInput | string | null
     carts?: cartsUncheckedUpdateOneWithoutUsersNestedInput
     orders?: ordersUncheckedUpdateManyWithoutUsersNestedInput
   }
@@ -18226,11 +18298,13 @@ export namespace Prisma {
     name: string
     email: string
     phone?: string | null
-    password_hash: string
+    password_hash?: string | null
     address?: string | null
     role?: $Enums.users_role | null
     created_at?: Date | string | null
     updated_at?: Date | string | null
+    facebook_id?: string | null
+    google_id?: string | null
     carts?: cartsCreateNestedOneWithoutUsersInput
     inventory_transactions?: inventory_transactionsCreateNestedManyWithoutUsersInput
   }
@@ -18240,11 +18314,13 @@ export namespace Prisma {
     name: string
     email: string
     phone?: string | null
-    password_hash: string
+    password_hash?: string | null
     address?: string | null
     role?: $Enums.users_role | null
     created_at?: Date | string | null
     updated_at?: Date | string | null
+    facebook_id?: string | null
+    google_id?: string | null
     carts?: cartsUncheckedCreateNestedOneWithoutUsersInput
     inventory_transactions?: inventory_transactionsUncheckedCreateNestedManyWithoutUsersInput
   }
@@ -18326,11 +18402,13 @@ export namespace Prisma {
     name?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
     phone?: NullableStringFieldUpdateOperationsInput | string | null
-    password_hash?: StringFieldUpdateOperationsInput | string
+    password_hash?: NullableStringFieldUpdateOperationsInput | string | null
     address?: NullableStringFieldUpdateOperationsInput | string | null
     role?: NullableEnumusers_roleFieldUpdateOperationsInput | $Enums.users_role | null
     created_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     updated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    facebook_id?: NullableStringFieldUpdateOperationsInput | string | null
+    google_id?: NullableStringFieldUpdateOperationsInput | string | null
     carts?: cartsUpdateOneWithoutUsersNestedInput
     inventory_transactions?: inventory_transactionsUpdateManyWithoutUsersNestedInput
   }
@@ -18340,11 +18418,13 @@ export namespace Prisma {
     name?: StringFieldUpdateOperationsInput | string
     email?: StringFieldUpdateOperationsInput | string
     phone?: NullableStringFieldUpdateOperationsInput | string | null
-    password_hash?: StringFieldUpdateOperationsInput | string
+    password_hash?: NullableStringFieldUpdateOperationsInput | string | null
     address?: NullableStringFieldUpdateOperationsInput | string | null
     role?: NullableEnumusers_roleFieldUpdateOperationsInput | $Enums.users_role | null
     created_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     updated_at?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    facebook_id?: NullableStringFieldUpdateOperationsInput | string | null
+    google_id?: NullableStringFieldUpdateOperationsInput | string | null
     carts?: cartsUncheckedUpdateOneWithoutUsersNestedInput
     inventory_transactions?: inventory_transactionsUncheckedUpdateManyWithoutUsersNestedInput
   }
