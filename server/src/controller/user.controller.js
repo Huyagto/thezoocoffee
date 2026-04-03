@@ -1,128 +1,308 @@
-const { ConflictRequestError, AuthFailureError, BadRequestError, BadGatewayError } = require('../core/error.response');
 const bcrypt = require('bcrypt');
-const prisma = require('../config/mysqlDB');
+const prisma = require('../config/prisma');
+const otp = require('otp-generator');
+const jwt = require('jsonwebtoken');
+
+const { AuthFailureError, BadRequestError, BadGatewayError } = require('../core/error.response');
+
 const { Created, OK } = require('../core/success.response');
-const otp = require('otp-generator')
-const  sendMailForgotPassword  = require('../utils/mailForgotPassword');
+
 const { createAccessToken, createRefreshToken } = require('../auth/checkAuth');
-function setCookie(res, accessToken, refreshToken) {
-    res.cookie('accessToken', accessToken, {
-        httpOnly: true,
-        secure: true,
-        maxAge: 1 * 24 * 60 * 60 * 1000,
-        sameSite: 'strict',
-    });
-    res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: true,
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-        sameSite: 'strict',
-    });
-    res.cookie('logged', 1, {
-        httpOnly: false,
-        secure: true,
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-        sameSite: 'strict',
-    });
-}
+
+const redisClient = require('../config/redis');
+
+const sendMailForgotPassword = require('../utils/mailForgotPassword');
+
+const { setAuthCookies, clearAuthCookies } = require('../helpers/user.helper');
+
+const { registerUser, loginUser } = require('../services/user.service');
+
+const OTP_CONFIG = {
+    digits: true,
+    upperCaseAlphabets: false,
+    specialChars: false,
+    lowerCaseAlphabets: false,
+};
+
 class UserController {
     async register(req, res) {
-        console.log('Register request received:', req.body);
-        const { name, email, phone, password, password_hash, address } = req.body;
-        const plainPassword = password ?? password_hash;
-        if (!name || !email || !plainPassword) {
-            throw new BadRequestError('Tên, email và mật khẩu là bắt buộc');
-        }
-        const findUser = await prisma.users.findUnique({
-            where: {
-                email,
-            },
+        const user = await registerUser(req.body);
+
+        const accessToken = createAccessToken({
+            id: user.id,
         });
-        if (findUser) {
-            throw new ConflictRequestError('Email đã tồn tại');
-        }
-        const saltRound = 10;
-        const hashPassword = await bcrypt.hash(plainPassword, saltRound);
-        const newUser = await prisma.users.create({
-            data: {
-                name,
-                email,
-                phone,
-                password_hash: hashPassword,
-                address,
-            },
+
+        const refreshToken = createRefreshToken({
+            id: user.id,
         });
-        const accessToken = createAccessToken({ id: newUser.id });
-        const refreshToken = createRefreshToken({ id: newUser.id });
-        setCookie(res, accessToken, refreshToken);
+
+        setAuthCookies(res, accessToken, refreshToken);
+
         new Created({
             message: 'Đăng ký thành công',
-            metadata: newUser,
+            metadata: user,
         }).send(res);
     }
-    async login(req, res) {
-        const { email, password, password_hash } = req.body;
-        const plainPassword = password ?? password_hash;
-        if (!email || !plainPassword) {
-            throw new BadRequestError('Email và mật khẩu là bắt buộc');
-        }
 
-        const user = await prisma.users.findUnique({
-            where: { email },
+    async login(req, res) {
+        const user = await loginUser(req.body);
+
+        const accessToken = createAccessToken({
+            id: user.id,
         });
 
-        if (!user) {
-            throw new AuthFailureError('Email hoặc mật khẩu không đúng');
-        }
+        const refreshToken = createRefreshToken({
+            id: user.id,
+        });
 
-        const isValidPassword = await bcrypt.compare(plainPassword, user.password_hash);
-
-        if (!isValidPassword) {
-            throw new AuthFailureError('Email hoặc mật khẩu không đúng');
-        }
-
-        const accessToken = createAccessToken({ id: user.id });
-        const refreshToken = createRefreshToken({ id: user.id });
-        setCookie(res, accessToken, refreshToken);
+        setAuthCookies(res, accessToken, refreshToken);
 
         new OK({
             message: 'Đăng nhập thành công',
             metadata: user,
         }).send(res);
     }
+    async loginOauth2(req, res) {
+        
+    }
     async logout(req, res) {
-        res.clearCookie('accessToken');
-        res.clearCookie('refreshToken');
-        res.clearCookie('logged');
+        clearAuthCookies(res);
+
         new OK({
             message: 'Đăng xuất thành công',
+            metadata: true,
         }).send(res);
     }
-    async forgotPassword(req, res) {
-        const { email } = req.body;
-        if (!email) {
-            throw new BadRequestError('Email là bắt buộc');
-        }
-        const findUser = await prisma.users.findUnique({
+
+    async authUser(req, res) {
+        const currentUser = await prisma.users.findUnique({
             where: {
-                email, 
+                id: req.user?.id,
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
             },
         });
-        if (!findUser) {
+
+        if (!currentUser) {
+            throw new AuthFailureError('Người dùng không tồn tại');
+        }
+
+        new OK({
+            message: 'Xác thực người dùng thành công',
+            metadata: currentUser,
+        }).send(res);
+    }
+
+    async forgotPassword(req, res) {
+        const { email } = req.body;
+
+        const user = await prisma.users.findUnique({
+            where: { email },
+        });
+
+        if (!user) {
             throw new AuthFailureError('Email không tồn tại');
         }
-        const generatedOtp = otp.generate(6, { upperCaseAlphabets: false, specialChars: false, lowerCaseAlphabets: false });
-        console.log('Generated OTP:', generatedOtp);
+
+        const generatedOtp = otp.generate(6, OTP_CONFIG);
+
+        await redisClient.set(`otp:${email}`, generatedOtp, { EX: 300 });
+
+        const token = jwt.sign({ email }, process.env.JWT_SECRET, {
+            expiresIn: '5m',
+        });
+
+        res.cookie('tokenVerifyForgotPassword', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 5 * 60 * 1000,
+        });
+
         try {
             await sendMailForgotPassword(email, generatedOtp);
         } catch (error) {
-            throw new BadGatewayError(error.message);
+            throw new BadGatewayError('Không thể gửi email');
         }
+
         new OK({
             message: 'Email đặt lại mật khẩu đã được gửi',
         }).send(res);
     }
 
+    async verifyForgotPassword(req, res) {
+        const { otp: inputOtp, password } = req.body;
+
+        const token = req.cookies.tokenVerifyForgotPassword;
+
+        if (!token) {
+            throw new AuthFailureError('Token xác minh không tồn tại');
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        const email = decoded.email;
+
+        const storedOtp = await redisClient.get(`otp:${email}`);
+
+        if (!storedOtp) {
+            throw new AuthFailureError('OTP đã hết hạn hoặc không tồn tại');
+        }
+
+        if (storedOtp !== inputOtp) {
+            throw new AuthFailureError('OTP không đúng');
+        }
+
+        const user = await prisma.users.findUnique({
+            where: {
+                email,
+            },
+        });
+
+        if (!user) {
+            throw new AuthFailureError('Email không tồn tại');
+        }
+
+        const isSamePassword = await bcrypt.compare(password, user.password_hash);
+
+        if (isSamePassword) {
+            throw new BadRequestError('Mật khẩu mới không được trùng mật khẩu cũ');
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        await prisma.users.update({
+            where: {
+                email,
+            },
+            data: {
+                password_hash: hashedPassword,
+            },
+        });
+
+        res.clearCookie('tokenVerifyForgotPassword');
+
+        await redisClient.del(`otp:${email}`);
+
+        new OK({
+            message: 'Đổi mật khẩu thành công',
+            metadata: true,
+        }).send(res);
+    }
+
+    async resetPassword(req, res) {
+        const { oldPassword, newPassword } = req.body;
+
+        const user = req.user;
+
+        if (!user) {
+            throw new AuthFailureError('Vui lòng đăng nhập');
+        }
+
+        const findUser = await prisma.users.findUnique({
+            where: {
+                id: user,
+            },
+        });
+
+        if (!findUser) {
+            throw new AuthFailureError('Người dùng không tồn tại');
+        }
+
+        const isValidOldPassword = await bcrypt.compare(oldPassword, findUser.password_hash);
+
+        if (!isValidOldPassword) {
+            throw new BadRequestError('Mật khẩu cũ không chính xác');
+        }
+
+        const isSamePassword = await bcrypt.compare(newPassword, findUser.password_hash);
+
+        if (isSamePassword) {
+            throw new BadRequestError('Mật khẩu mới không được trùng mật khẩu cũ');
+        }
+
+        const generatedOtp = otp.generate(6, OTP_CONFIG);
+
+        try {
+            await sendMailForgotPassword(findUser.email, generatedOtp);
+        } catch (error) {
+            throw new BadGatewayError('Không thể gửi email');
+        }
+
+       const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+await redisClient.set(
+    `otp:reset-password:${findUser.email}`,
+    JSON.stringify({
+        otp: generatedOtp,
+        newPassword: hashedNewPassword
+    }),
+    { EX: 300 }
+);
+
+        new OK({
+            message: 'Mã OTP xác nhận đổi mật khẩu đã được gửi đến email của bạn',
+            metadata: true,
+        }).send(res);
+    }
+
+    async verifyResetPassword(req, res) {
+    const { otp: inputOtp } = req.body;
+
+    const user = req.user;
+
+    if (!user) {
+        throw new AuthFailureError('Vui lòng đăng nhập');
+    }
+
+    const findUser = await prisma.users.findUnique({
+        where: {
+            id: user,
+        },
+    });
+
+    if (!findUser) {
+        throw new AuthFailureError('Người dùng không tồn tại');
+    }
+
+    const storedData = await redisClient.get(
+        `otp:reset-password:${findUser.email}`
+    );
+
+    if (!storedData) {
+        throw new AuthFailureError(
+            'OTP đã hết hạn hoặc không tồn tại'
+        );
+    }
+
+    const { otp, newPassword } = JSON.parse(storedData);
+
+    if (otp !== inputOtp) {
+        throw new AuthFailureError('OTP không đúng');
+    }
+
+    await prisma.users.update({
+        where: {
+            id: user,
+        },
+        data: {
+            password_hash: newPassword,
+        },
+    });
+
+    await redisClient.del(
+        `otp:reset-password:${findUser.email}`
+    );
+
+    new OK({
+        message: 'Đổi mật khẩu thành công',
+        metadata: true,
+    }).send(res);
+}
 }
 
 module.exports = new UserController();

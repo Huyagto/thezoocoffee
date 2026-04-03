@@ -1,5 +1,5 @@
 const AuthFailureError = require('../core/error.response')
-const verifyToken = require('../auth/checkAuth');
+const { verifyToken } = require('../auth/checkAuth');
 
 const authUser = async (req, res, next) => {
         try {
