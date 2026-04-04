@@ -2,23 +2,68 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Coffee, Mail, Lock, Eye, EyeOff, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Coffee, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Spinner } from "@/components/ui/spinner";
+import { Toaster } from "@/components/ui/toaster";
+import { useAuth } from "@/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
+import authService from "@/services/auth.service";
 
-export default function RegisterPage() {
+export default function LoginPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const { login, refreshUser } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle registration logic here
-    console.log({ fullName, email, password, confirmPassword });
+    setErrorMessage("");
+
+    setIsSubmitting(true);
+
+    try {
+      await login({
+        email: email.trim(),
+        password,
+      });
+      await refreshUser();
+
+      toast({
+        title: "Login successful",
+        description: "Welcome back to TheZooCoffee.",
+      });
+
+      router.push("/");
+      router.refresh();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to sign in.";
+
+      setErrorMessage(message);
+      toast({
+        title: "Login failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    setIsGoogleLoading(true);
+    authService.loginWithGoogle();
   };
 
   return (
@@ -31,7 +76,7 @@ export default function RegisterPage() {
 
       <div className="relative flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
-          {/* Register Card */}
+          {/* Login Card */}
           <div className="rounded-2xl border border-border bg-card p-8 shadow-lg">
             {/* Logo */}
             <div className="mb-8 flex flex-col items-center">
@@ -41,31 +86,14 @@ export default function RegisterPage() {
                   TheZooCoffee
                 </span>
               </Link>
-              <h1 className="text-xl font-semibold text-foreground">Create an account</h1>
-              <p className="mt-1 text-center text-sm text-muted-foreground">
-                Join us and enjoy premium coffee rewards
+              <h1 className="text-xl font-semibold text-foreground">Welcome back</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Sign in to your account to continue
               </p>
             </div>
 
-            {/* Register Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Full Name Field */}
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="fullName"
-                    type="text"
-                    placeholder="John Doe"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="pl-10"
-                    required
-                  />
-                </div>
-              </div>
-
+            {/* Login Form */}
+            <form onSubmit={handleSubmit} className="space-y-5">
               {/* Email Field */}
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -76,7 +104,10 @@ export default function RegisterPage() {
                     type="email"
                     placeholder="you@example.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (errorMessage) setErrorMessage("");
+                    }}
                     className="pl-10"
                     required
                   />
@@ -91,9 +122,12 @@ export default function RegisterPage() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Create a password"
+                    placeholder="Enter your password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (errorMessage) setErrorMessage("");
+                    }}
                     className="pl-10 pr-10"
                     required
                   />
@@ -114,70 +148,62 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Confirm Password Field */}
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm your password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pl-10 pr-10"
-                    required
+              {/* Remember Me & Forgot Password */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="remember"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                    <span className="sr-only">
-                      {showConfirmPassword ? "Hide password" : "Show password"}
-                    </span>
-                  </button>
+                  <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
+                    Remember me
+                  </Label>
                 </div>
+                <Link
+                  href="/forgot-password"
+                  className="text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                >
+                  Forgot password?
+                </Link>
               </div>
 
-              {/* Terms Notice */}
-              <p className="text-xs text-muted-foreground">
-                By creating an account, you agree to our{" "}
-                <Link href="/terms" className="text-primary hover:underline">
-                  Terms of Service
-                </Link>{" "}
-                and{" "}
-                <Link href="/privacy" className="text-primary hover:underline">
-                  Privacy Policy
-                </Link>
-                .
-              </p>
+              {errorMessage ? (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  {errorMessage}
+                </div>
+              ) : null}
 
-              {/* Register Button */}
+              {/* Login Button */}
               <Button
                 type="submit"
+                disabled={isSubmitting}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                 size="lg"
               >
-                Create Account
+                {isSubmitting ? (
+                  <>
+                    <Spinner className="mr-2 h-4 w-4" />
+                    Signing In...
+                  </>
+                ) : (
+                  "Sign In"
+                )}
               </Button>
             </form>
 
             {/* Divider */}
             <div className="my-6 flex items-center gap-4">
               <div className="h-px flex-1 bg-border" />
-              <span className="text-sm text-muted-foreground">or sign up with</span>
+              <span className="text-sm text-muted-foreground">or continue with</span>
               <div className="h-px flex-1 bg-border" />
             </div>
 
-            {/* Google Signup */}
+            {/* Google Login */}
             <Button
               type="button"
+              onClick={handleGoogleLogin}
+              disabled={isGoogleLoading}
               variant="outline"
               className="w-full gap-2"
               size="lg"
@@ -200,18 +226,22 @@ export default function RegisterPage() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              Continue with Google
+              {isGoogleLoading ? "Redirecting to Google..." : "Continue with Google"}
             </Button>
 
-            {/* Login Link */}
+            {/* Register Link */}
             <p className="mt-6 text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link
-                href="/login"
+                href="/register"
                 className="font-medium text-primary hover:text-primary/80 transition-colors"
               >
-                Sign in
+                Create an account
               </Link>
+            </p>
+
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              If you don&apos;t remember your password, use Forgot password or create a new account.
             </p>
           </div>
 
@@ -226,6 +256,7 @@ export default function RegisterPage() {
           </div>
         </div>
       </div>
+      <Toaster />
     </div>
   );
 }

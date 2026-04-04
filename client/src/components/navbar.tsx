@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Menu, X, ShoppingCart, User, Coffee } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/auth-context";
 import { useCart } from "@/context/cart-context";
 
 const navLinks = [
@@ -13,8 +15,21 @@ const navLinks = [
 ];
 
 export function Navbar() {
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user: currentUser } = useAuth();
   const { totalItems } = useCart();
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      setMobileMenuOpen(false);
+      router.push("/");
+      router.refresh();
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -42,16 +57,39 @@ export function Navbar() {
 
         {/* Desktop Actions */}
         <div className="hidden items-center gap-3 md:flex">
-          <Link href="/login">
-            <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
-              Login
-            </Button>
-          </Link>
-          <Link href="/register">
-            <Button variant="outline" className="border-primary/30 text-foreground hover:bg-primary/5">
-              Register
-            </Button>
-          </Link>
+          {currentUser ? (
+            <>
+              <Link href="/profile">
+                <Button
+                  variant="ghost"
+                  className="gap-2 text-muted-foreground hover:text-foreground"
+                >
+                  <User className="h-4 w-4" />
+                  {currentUser.name}
+                </Button>
+              </Link>
+              <Button
+                variant="ghost"
+                onClick={handleLogout}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Logout
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href="/login">
+                <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
+                  Login
+                </Button>
+              </Link>
+              <Link href="/register">
+                <Button variant="outline" className="border-primary/30 text-foreground hover:bg-primary/5">
+                  Register
+                </Button>
+              </Link>
+            </>
+          )}
           <Link href="/cart">
             <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
               <ShoppingCart className="h-5 w-5" />
@@ -113,17 +151,41 @@ export function Navbar() {
               </Link>
             ))}
             <div className="mt-4 flex flex-col gap-2 pt-4 border-t border-border">
-              <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="outline" className="w-full justify-start gap-2">
-                  <User className="h-4 w-4" />
-                  Login
-                </Button>
-              </Link>
-              <Link href="/register" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground">
-                  Create Account
-                </Button>
-              </Link>
+              {currentUser ? (
+                <>
+                  <Link href="/profile" onClick={() => setMobileMenuOpen(false)}>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-2 text-muted-foreground"
+                    >
+                      <User className="h-4 w-4" />
+                      {currentUser.name}
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start gap-2"
+                    onClick={handleLogout}
+                  >
+                    <User className="h-4 w-4" />
+                    Logout
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="outline" className="w-full justify-start gap-2">
+                      <User className="h-4 w-4" />
+                      Login
+                    </Button>
+                  </Link>
+                  <Link href="/register" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground">
+                      Create Account
+                    </Button>
+                  </Link>
+                </>
+              )}
               <Link href="/menu" onClick={() => setMobileMenuOpen(false)}>
                 <Button className="w-full bg-primary text-primary-foreground">
                   Order Now

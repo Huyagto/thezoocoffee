@@ -20,12 +20,47 @@ const { registerUser, loginUser } = require('../../services/user.service');
 const { oAuth2Client, oauth2 } = require('../../utils/loginOAuth2Google');
 
 const { getFacebookLoginUrl, getFacebookAccessToken, getFacebookUserInfo } = require('../../utils/loginOAuth2Facebook');
+const CLIENT_REDIRECT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
 
 const OTP_CONFIG = {
     digits: true,
     upperCaseAlphabets: false,
     specialChars: false,
     lowerCaseAlphabets: false,
+};
+
+const SAFE_USER_SELECT = {
+    id: true,
+    name: true,
+    email: true,
+    phone: true,
+    address: true,
+    role: true,
+    created_at: true,
+    updated_at: true,
+    facebook_id: true,
+    google_id: true,
+};
+
+const sendClientRedirect = (res, path = '/profile') => {
+    const destination = `${CLIENT_REDIRECT_URL}${path}`;
+
+    return res
+        .status(200)
+        .send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content="0;url=${destination}" />
+    <title>Redirecting...</title>
+  </head>
+  <body>
+    <script>
+      window.location.replace(${JSON.stringify(destination)});
+    </script>
+    <p>Redirecting to your account...</p>
+  </body>
+</html>`);
 };
 
 class UserController {
@@ -88,9 +123,9 @@ class UserController {
         const { data } = await oauth2.userinfo.get();
 
         const { email, name, id: googleId } = data;
-        console.log(data);
         let user = await prisma.users.findUnique({
             where: { email },
+            select: SAFE_USER_SELECT,
         });
 
         if (!user) {
@@ -101,6 +136,13 @@ class UserController {
                     google_id: googleId,
                     role: 'customer',
                 },
+                select: SAFE_USER_SELECT,
+            });
+        } else if (!user.google_id) {
+            user = await prisma.users.update({
+                where: { id: user.id },
+                data: { google_id: googleId },
+                select: SAFE_USER_SELECT,
             });
         }
 
@@ -113,6 +155,7 @@ class UserController {
         });
 
         setAuthCookies(res, accessToken, refreshToken);
+        return sendClientRedirect(res);
 
         return new OK({
             message: 'Đăng nhập Google thành công',
@@ -138,6 +181,7 @@ class UserController {
 
         let user = await prisma.users.findUnique({
             where: { email },
+            select: SAFE_USER_SELECT,
         });
 
         if (!user) {
@@ -148,6 +192,13 @@ class UserController {
                     facebook_id: facebookId,
                     role: 'customer',
                 },
+                select: SAFE_USER_SELECT,
+            });
+        } else if (!user.facebook_id) {
+            user = await prisma.users.update({
+                where: { id: user.id },
+                data: { facebook_id: facebookId },
+                select: SAFE_USER_SELECT,
             });
         }
 
@@ -160,6 +211,7 @@ class UserController {
         });
 
         setAuthCookies(res, jwtAccessToken, refreshToken);
+        return sendClientRedirect(res);
 
         return new OK({
             message: 'Đăng nhập Facebook thành công',
@@ -298,15 +350,15 @@ class UserController {
     async resetPassword(req, res) {
         const { oldPassword, newPassword } = req.body;
 
-        const user = req.user;
+        const userId = req.user?.id;
 
-        if (!user) {
+        if (!userId) {
             throw new AuthFailureError('Vui lòng đăng nhập');
         }
 
         const findUser = await prisma.users.findUnique({
             where: {
-                id: user,
+                id: userId,
             },
         });
 
@@ -354,15 +406,15 @@ class UserController {
     async verifyResetPassword(req, res) {
         const { otp: inputOtp } = req.body;
 
-        const user = req.user;
+        const userId = req.user?.id;
 
-        if (!user) {
+        if (!userId) {
             throw new AuthFailureError('Vui lòng đăng nhập');
         }
 
         const findUser = await prisma.users.findUnique({
             where: {
-                id: user,
+                id: userId,
             },
         });
 
@@ -384,7 +436,7 @@ class UserController {
 
         await prisma.users.update({
             where: {
-                id: user,
+                id: userId,
             },
             data: {
                 password_hash: newPassword,

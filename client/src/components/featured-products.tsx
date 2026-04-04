@@ -2,6 +2,7 @@ import { ProductCard } from "@/components/product-card";
 
 const products = [
   {
+    id: 1,
     name: "Signature Latte",
     description: "Smooth espresso with steamed milk and a touch of sweetness",
     price: "$5.50",
@@ -9,18 +10,21 @@ const products = [
     badge: "Popular",
   },
   {
+    id: 2,
     name: "Classic Espresso",
     description: "Rich and bold single-origin espresso shot",
     price: "$3.50",
     image: "/images/espresso.jpg",
   },
   {
+    id: 3,
     name: "Creamy Cappuccino",
     description: "Perfect balance of espresso, steamed milk, and foam",
     price: "$4.75",
     image: "/images/cappuccino.jpg",
   },
   {
+    id: 4,
     name: "Cold Brew",
     description: "Smooth, refreshing cold-steeped coffee served over ice",
     price: "$4.50",

@@ -11,10 +11,10 @@ const authUser = async (req, res, next) => {
             if(!decoded){
                 throw new AuthFailureError('Vui lòng đăng nhập lại để truy cập')
             }
-            req.user = decoded.id;
+            req.user = decoded;
             next();
         } catch (error) {
-            console.log(error);
+            next(error);
         }
 }
 module.exports = { authUser };
