@@ -1,27 +1,45 @@
 services:
-  mysql:
-    image: mysql:8
-    container_name: thezoo_mysql
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: 123456
-      MYSQL_DATABASE: thezoocoffee
-      MYSQL_USER: prisma
-      MYSQL_PASSWORD: 123456
-    ports:
-      - "13306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
+    mysql:
+        image: mariadb:10.11
+        container_name: thezoo_mysql
+        restart: always
+        environment:
+            MYSQL_ROOT_PASSWORD: 123456
+            MYSQL_DATABASE: thezoocoffee
+            MYSQL_USER: prisma
+            MYSQL_PASSWORD: 123456
+        ports:
+            - '13306:3306'
+        volumes:
+            - mysql_data:/var/lib/mysql
 
-  redis:
-    image: redis:7
-    container_name: thezoo_redis
-    restart: always
-    ports:
-      - "16379:6379"
-    volumes:
-      - redis_data:/data
+    redis:
+        image: redis:7
+        container_name: thezoo_redis
+        restart: always
+        ports:
+            - '16379:6379'
+        volumes:
+            - redis_data:/data
+
+    server:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: thezoo_server
+        restart: unless-stopped
+        env_file: .env
+        environment:
+            DATABASE_URL: 'mysql://prisma:123456@mysql:3306/thezoocoffee'
+            REDIS_URL: 'redis://redis:6379'
+            PORT: '5000'
+        ports:
+            - '5000:5000'
+        depends_on:
+            - mysql
+            - redis
+        command: sh -c "sleep 15 && npm run seed && npm start"
 
 volumes:
-  mysql_data:
-  redis_data:
+    mysql_data:
+    redis_data:

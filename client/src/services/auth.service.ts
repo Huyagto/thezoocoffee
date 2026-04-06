@@ -11,7 +11,10 @@ const AUTH_ENDPOINTS = {
   LOGIN: "/user/login",
   REGISTER: "/user/register",
   CURRENT_USER: "/user/auth",
+  UPDATE_PROFILE: "/user/profile",
   LOGOUT: "/user/logout",
+  RESET_PASSWORD: "/user/reset-password",
+  VERIFY_RESET_PASSWORD: "/user/verify-reset-password",
   GOOGLE: "/user/google",
 }
 
@@ -47,8 +50,42 @@ export const authService = {
     return getPayload(response.data)
   },
 
+  async updateProfile(data: {
+    name: string
+    phone?: string
+    address?: string
+  }): Promise<User> {
+    const response = await axiosInstance.put<ApiResponse<User>>(
+      AUTH_ENDPOINTS.UPDATE_PROFILE,
+      data
+    )
+
+    return getPayload(response.data)
+  },
+
   async logout(): Promise<void> {
     await axiosInstance.get(AUTH_ENDPOINTS.LOGOUT)
+  },
+
+  async requestPasswordReset(data: {
+    oldPassword: string
+    newPassword: string
+  }): Promise<boolean> {
+    const response = await axiosInstance.post<ApiResponse<boolean>>(
+      AUTH_ENDPOINTS.RESET_PASSWORD,
+      data
+    )
+
+    return getPayload(response.data)
+  },
+
+  async verifyPasswordReset(data: { otp: string }): Promise<boolean> {
+    const response = await axiosInstance.post<ApiResponse<boolean>>(
+      AUTH_ENDPOINTS.VERIFY_RESET_PASSWORD,
+      data
+    )
+
+    return getPayload(response.data)
   },
 
   loginWithGoogle(): void {

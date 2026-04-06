@@ -1,63 +1,81 @@
-import { ProductCard } from "@/components/product-card";
-
-const products = [
-  {
-    id: 1,
-    name: "Signature Latte",
-    description: "Smooth espresso with steamed milk and a touch of sweetness",
-    price: "$5.50",
-    image: "/images/latte.jpg",
-    badge: "Popular",
-  },
-  {
-    id: 2,
-    name: "Classic Espresso",
-    description: "Rich and bold single-origin espresso shot",
-    price: "$3.50",
-    image: "/images/espresso.jpg",
-  },
-  {
-    id: 3,
-    name: "Creamy Cappuccino",
-    description: "Perfect balance of espresso, steamed milk, and foam",
-    price: "$4.75",
-    image: "/images/cappuccino.jpg",
-  },
-  {
-    id: 4,
-    name: "Cold Brew",
-    description: "Smooth, refreshing cold-steeped coffee served over ice",
-    price: "$4.50",
-    image: "/images/cold-brew.jpg",
-    badge: "New",
-  },
-];
+'use client';
+import { ProductCard } from '@/components/product-card';
+import { useState, useEffect } from 'react';
+import { productService } from '@/services/product.service';
+import type { Product } from '@/types/api';
 
 export function FeaturedProducts() {
-  return (
-    <section id="menu" className="bg-background py-20 lg:py-28">
-      <div className="mx-auto max-w-7xl px-4 lg:px-8">
-        {/* Header */}
-        <div className="mb-12 flex flex-col items-center text-center">
-          <span className="mb-4 inline-block text-sm font-medium uppercase tracking-wider text-accent">
-            Our Menu
-          </span>
-          <h2 className="font-serif text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl text-balance">
-            Featured Drinks
-          </h2>
-          <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground text-pretty">
-            Discover our handcrafted selection of premium coffee drinks, 
-            made with the finest beans from around the world.
-          </p>
-        </div>
+    const [products, setProducts] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true);
 
-        {/* Products Grid */}
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {products.map((product) => (
-            <ProductCard key={product.name} {...product} />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const response = await productService.getAllProducts({ limit: 4 });
+                setProducts(response.products || []);
+            } catch (error) {
+                console.error('Failed to fetch products:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchProducts();
+    }, []);
+
+    if (loading) {
+        return (
+            <section id="menu" className="bg-background py-20 lg:py-28">
+                <div className="mx-auto max-w-7xl px-4 lg:px-8">
+                    <div className="mb-12 flex flex-col items-center text-center">
+                        <span className="mb-4 inline-block text-sm font-medium uppercase tracking-wider text-accent">
+                            Menu Của Chúng Tôi
+                        </span>
+                        <h2 className="font-serif text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl text-balance">
+                            Đồ Uống Nổi Bật
+                        </h2>
+                        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground text-pretty">
+                            Đang tải đồ uống nổi bật của chúng tôi...
+                        </p>
+                    </div>
+                </div>
+            </section>
+        );
+    }
+
+    return (
+        <section id="menu" className="bg-background py-20 lg:py-28">
+            <div className="mx-auto max-w-7xl px-4 lg:px-8">
+                {/* Header */}
+                <div className="mb-12 flex flex-col items-center text-center">
+                    <span className="mb-4 inline-block text-sm font-medium uppercase tracking-wider text-accent">
+                        Menu Của Chúng Tôi
+                    </span>
+                    <h2 className="font-serif text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl text-balance">
+                        Đồ Uống Nổi Bật
+                    </h2>
+                    <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground text-pretty">
+                        Khám phá bộ sưu tập đồ uống cà phê thủ công cao cấp của chúng tôi, được làm từ những hạt cà phê
+                        tốt nhất trên thế giới.
+                    </p>
+                </div>
+
+                {/* Products Grid */}
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                    {products.map((product) => (
+                        <ProductCard
+                            key={product.id}
+                            id={product.id}
+                            name={product.name}
+                            description={product.description || ''}
+                            price={`$${Number(product.price)
+                                .toFixed(0)
+                                .replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`}
+                            image={product.image || '/images/default.jpg'}
+                        />
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
 }

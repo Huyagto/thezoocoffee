@@ -45,7 +45,7 @@ export const cartService = {
   async updateCartQuantity(
     id: string,
     data: UpdateCartQuantityData
-  ): Promise<CartItem> {
+  ): Promise<CartItem | null> {
     const response = await axiosInstance.patch<ApiResponse<CartItem>>(
       CART_ENDPOINTS.UPDATE_QUANTITY(id),
       data

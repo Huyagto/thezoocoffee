@@ -27,20 +27,36 @@ export interface RegisterData {
 export type AuthResponse = User
 
 // Product Types
-export interface Product {
-  id: string
+export interface Category {
+  id: number
   name: string
-  description: string
-  price: number
-  image: string
+  status: "active" | "inactive"
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Product {
+  id: number
+  name: string
+  description?: string | null
+  price: number | string
+  image?: string | null
   images?: string[]
-  category: string
-  stock: number
+  category?: string
+  stock?: number
   badge?: string
   rating?: number
   reviewCount?: number
-  createdAt: string
-  updatedAt: string
+  createdAt?: string
+  updatedAt?: string
+  created_at?: string
+  updated_at?: string
+  status?: "available" | "out_of_stock" | "discontinued"
+  categories?: {
+    id: number
+    name: string
+    status?: "active" | "inactive"
+  } | null
 }
 
 export interface ProductsResponse {
@@ -53,8 +69,13 @@ export interface ProductsResponse {
 
 // Cart Types
 export interface CartItem {
-  id: string
-  productId: string
+  id: number
+  cartItemId?: number
+  productId: number
+  name?: string
+  description?: string
+  price?: number
+  image?: string
   product: Product
   quantity: number
 }
@@ -104,34 +125,84 @@ export interface ShippingInfo {
   note?: string
 }
 
+export interface CheckoutItem {
+  productId: number
+  quantity: number
+}
+
+export interface Coupon {
+  id: number
+  code: string
+  name: string
+  description?: string | null
+  discount_type: "percentage" | "fixed"
+  discount_value: number | string
+  min_order_value?: number | string | null
+  max_discount_amount?: number | string | null
+  usage_limit?: number | null
+  used_count?: number | null
+  starts_at?: string | null
+  expires_at?: string | null
+  status: "active" | "inactive"
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CouponValidationResult {
+  coupon: Coupon
+  discountAmount: number
+  finalSubtotal: number
+}
+
 export interface Order {
-  id: string
-  orderNumber: string
-  userId: string
-  items: OrderItem[]
-  shippingInfo: ShippingInfo
-  paymentMethod: PaymentMethod
-  status: OrderStatus
-  subtotal: number
-  shippingFee: number
-  total: number
+  id: string | number
+  coupon_id?: number | null
+  order_code: string
+  discount_amount?: number | string | null
+  total_amount: number | string
+  shipping_address: string
+  note?: string | null
+  order_status: "pending" | "confirmed" | "preparing" | "completed" | "cancelled"
+  payment_status: "unpaid" | "paid" | "failed" | "refunded"
+  created_at?: string
+  updated_at?: string
+  user?: {
+    id: number
+    name: string
+    email: string
+  }
+  users?: {
+    id: number
+    name: string
+    email: string
+  }
+  order_items?: Array<{
+    id: number
+    quantity: number
+    unit_price: number | string
+    subtotal: number | string
+    products?: {
+      id: number
+      name: string
+      sku?: string | null
+    }
+  }>
   paymentUrl?: string
-  paidAt?: string
-  createdAt: string
-  updatedAt: string
 }
 
 export interface CheckoutData {
   shippingInfo: ShippingInfo
   paymentMethod: PaymentMethod
+  items: CheckoutItem[]
+  couponCode?: string
 }
 
 export interface OrdersResponse {
   orders: Order[]
-  total: number
-  page: number
-  limit: number
-  totalPages: number
+  total?: number
+  page?: number
+  limit?: number
+  totalPages?: number
 }
 
 // API Response Types

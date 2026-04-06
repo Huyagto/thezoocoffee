@@ -1,113 +1,53 @@
 'use strict';
 
-const {
-    BadRequestError,
-    UnprocessableEntityError
-} = require('../core/error.response');
+const { BadRequestError, UnprocessableEntityError } = require('../core/error.response');
 
-const emailRegex =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const phoneRegex =
-    /^(0|\+84)[0-9]{9}$/;
+const phoneRegex = /^(0|\+84)[0-9]{9}$/;
 
-const passwordRegex =
-    /^(?=.*[A-Za-z])(?=.*\d).{8,50}$/;
+const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,50}$/;
 
-const validateRegister = (
-    req,
-    res,
-    next
-) => {
+const validateRegister = (req, res, next) => {
     try {
-        const {
-            name,
-            email,
-            password,
-            phone,
-            address
-        } = req.body;
+        const { name, email, password, phone, address } = req.body;
 
-        if (
-            !name ||
-            typeof name !== 'string'
-        ) {
-            throw new BadRequestError(
-                'Tên là bắt buộc'
-            );
+        if (!name || typeof name !== 'string') {
+            throw new BadRequestError('Tên là bắt buộc');
         }
 
         const cleanName = name.trim();
 
         if (cleanName.length < 2) {
-            throw new BadRequestError(
-                'Tên quá ngắn'
-            );
+            throw new BadRequestError('Tên quá ngắn');
         }
 
         if (cleanName.length > 100) {
-            throw new BadRequestError(
-                'Tên quá dài'
-            );
+            throw new BadRequestError('Tên quá dài');
         }
 
-        if (
-            !email ||
-            typeof email !== 'string'
-        ) {
-            throw new BadRequestError(
-                'Email là bắt buộc'
-            );
+        if (!email || typeof email !== 'string') {
+            throw new BadRequestError('Email là bắt buộc');
         }
 
-        if (
-            !emailRegex.test(
-                email.trim()
-            )
-        ) {
-            throw new UnprocessableEntityError(
-                'Email không đúng định dạng'
-            );
+        if (!emailRegex.test(email.trim())) {
+            throw new UnprocessableEntityError('Email không đúng định dạng');
         }
 
-        if (
-            !password ||
-            typeof password !==
-                'string'
-        ) {
-            throw new BadRequestError(
-                'Mật khẩu là bắt buộc'
-            );
+        if (!password || typeof password !== 'string') {
+            throw new BadRequestError('Mật khẩu là bắt buộc');
         }
 
-        if (
-            !passwordRegex.test(
-                password
-            )
-        ) {
-            throw new UnprocessableEntityError(
-                'Mật khẩu phải từ 8-50 ký tự, gồm chữ và số'
-            );
+        if (!passwordRegex.test(password)) {
+            throw new UnprocessableEntityError('Mật khẩu phải từ 8-50 ký tự, gồm chữ và số');
         }
 
-        if (
-            phone &&
-            !phoneRegex.test(
-                phone.trim()
-            )
-        ) {
-            throw new UnprocessableEntityError(
-                'Số điện thoại không hợp lệ'
-            );
+        if (phone && !phoneRegex.test(phone.trim())) {
+            throw new UnprocessableEntityError('Số điện thoại không hợp lệ');
         }
 
-        if (
-            address &&
-            address.trim().length < 5
-        ) {
-            throw new BadRequestError(
-                'Địa chỉ quá ngắn'
-            );
+        if (address && address.trim().length < 5) {
+            throw new BadRequestError('Địa chỉ quá ngắn');
         }
 
         next();
@@ -116,29 +56,16 @@ const validateRegister = (
     }
 };
 
-const validateLogin = (
-    req,
-    res,
-    next
-) => {
+const validateLogin = (req, res, next) => {
     try {
-        const { email, password } =
-            req.body;
+        const { email, password } = req.body;
 
         if (!email || !password) {
-            throw new BadRequestError(
-                'Email và mật khẩu là bắt buộc'
-            );
+            throw new BadRequestError('Email và mật khẩu là bắt buộc');
         }
 
-        if (
-            !emailRegex.test(
-                email.trim()
-            )
-        ) {
-            throw new UnprocessableEntityError(
-                'Email không đúng định dạng'
-            );
+        if (!emailRegex.test(email.trim())) {
+            throw new UnprocessableEntityError('Email không đúng định dạng');
         }
 
         next();
@@ -147,27 +74,15 @@ const validateLogin = (
     }
 };
 
-const validateForgotPassword = (
-    req,
-    res,
-    next
-) => {
+const validateForgotPassword = (req, res, next) => {
     try {
         const { email } = req.body;
 
         if (!email) {
-            throw new BadRequestError(
-                'Email là bắt buộc'
-            );
+            throw new BadRequestError('Email là bắt buộc');
         }
-        if (
-            !emailRegex.test(
-                email.trim()
-            )
-        ) {
-            throw new UnprocessableEntityError(
-                'Email không đúng định dạng'
-            );
+        if (!emailRegex.test(email.trim())) {
+            throw new UnprocessableEntityError('Email không đúng định dạng');
         }
 
         next();
@@ -176,34 +91,68 @@ const validateForgotPassword = (
     }
 };
 
-const validateResetPassword = (
-    req,
-    res,
-    next
-) => {
+const validateResetPassword = (req, res, next) => {
     try {
-        const {
-            oldPassword,
-            newPassword
-        } = req.body;
+        const { oldPassword, newPassword } = req.body;
 
-        if (
-            !oldPassword ||
-            !newPassword
-        ) {
-            throw new BadRequestError(
-                'Mật khẩu cũ và mật khẩu mới là bắt buộc'
-            );
+        if (!oldPassword || !newPassword) {
+            throw new BadRequestError('Mật khẩu cũ và mật khẩu mới là bắt buộc');
         }
 
-        if (
-            !passwordRegex.test(
-                newPassword
-            )
-        ) {
-            throw new UnprocessableEntityError(
-                'Mật khẩu mới không hợp lệ'
-            );
+        if (!passwordRegex.test(newPassword)) {
+            throw new UnprocessableEntityError('Mật khẩu mới không hợp lệ');
+        }
+
+        next();
+    } catch (error) {
+        next(error);
+    }
+};
+
+const validateUpdateProfile = (req, res, next) => {
+    try {
+        const { name, phone, address } = req.body;
+
+        if (!name || typeof name !== 'string') {
+            throw new BadRequestError('Tên là bắt buộc');
+        }
+
+        const cleanName = name.trim();
+
+        if (cleanName.length < 2) {
+            throw new BadRequestError('Tên quá ngắn');
+        }
+
+        if (cleanName.length > 100) {
+            throw new BadRequestError('Tên quá dài');
+        }
+
+        if (phone && !phoneRegex.test(phone.trim())) {
+            throw new UnprocessableEntityError('Số điện thoại không hợp lệ');
+        }
+
+        if (address && address.trim().length < 5) {
+            throw new BadRequestError('Địa chỉ quá ngắn');
+        }
+
+        next();
+    } catch (error) {
+        next(error);
+    }
+};
+
+const validateUpdateUserRole = (req, res, next) => {
+    try {
+        const { role } = req.body;
+
+        if (!role || typeof role !== 'string') {
+            throw new BadRequestError('Vai trò là bắt buộc');
+        }
+
+        const validRoles = ['customer', 'admin'];
+
+        if (!validRoles.includes(role)) {
+            throw new BadRequestError('Vai trò không hợp lệ');
         }
 
         next();
@@ -216,5 +165,7 @@ module.exports = {
     validateRegister,
     validateLogin,
     validateForgotPassword,
-    validateResetPassword
+    validateResetPassword,
+    validateUpdateProfile,
+    validateUpdateUserRole,
 };

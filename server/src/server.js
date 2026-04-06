@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const port = process.env.PORT;
 const routes = require('./routes/index.routes');
 const cookieParser = require('cookie-parser');
+const prisma = require('./config/prisma');
 
 const cor = require('cors');
 const allowedOrigins = new Set([
@@ -38,7 +39,34 @@ app.use((err, req, res, next) => {
     });
 });
 
+async function startServer() {
+    try {
+        await prisma.$connect();
+        console.log(
+            `Prisma connected to ${prisma.databaseMeta.host}:${prisma.databaseMeta.port}/${prisma.databaseMeta.database} as ${prisma.databaseMeta.user}`,
+        );
 
-app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`);
+        app.listen(port, () => {
+            console.log(`Example app listening on port ${port}`);
+        });
+    } catch (error) {
+        console.error('Failed to connect to database before starting server.');
+        console.error(
+            `Configured database: ${prisma.databaseMeta.host}:${prisma.databaseMeta.port}/${prisma.databaseMeta.database} as ${prisma.databaseMeta.user}`,
+        );
+        console.error(error instanceof Error ? error.message : error);
+        process.exit(1);
+    }
+}
+
+void startServer();
+
+process.on('SIGINT', async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    await prisma.$disconnect();
+    process.exit(0);
 });

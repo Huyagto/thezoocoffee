@@ -21,6 +21,11 @@ export interface GetOrdersParams {
 
 const getPayload = <T>(response: ApiResponse<T>): T => response.metadata ?? response.data!
 
+const normalizeOrder = (order: Order & { users?: Order["user"] }): Order => ({
+  ...order,
+  user: order.user ?? order.users,
+})
+
 export const orderService = {
   /**
    * Create new order from cart (checkout)
@@ -30,18 +35,21 @@ export const orderService = {
       ORDER_ENDPOINTS.CHECKOUT,
       data
     )
-    return getPayload(response.data)
+    return normalizeOrder(getPayload(response.data) as Order & { users?: Order["user"] })
   },
 
   /**
    * Get user's orders with optional pagination and filters
    */
   async getOrders(params?: GetOrdersParams): Promise<OrdersResponse> {
-    const response = await axiosInstance.get<ApiResponse<OrdersResponse>>(
-      ORDER_ENDPOINTS.GET_ORDERS,
+    const response = await axiosInstance.get<ApiResponse<Order[]>>(
+      `${ORDER_ENDPOINTS.GET_ORDERS}/my-orders`,
       { params }
     )
-    return getPayload(response.data)
+    const orders = getPayload(response.data).map((order) =>
+      normalizeOrder(order as Order & { users?: Order["user"] })
+    )
+    return { orders, total: orders.length }
   },
 
   /**
@@ -51,7 +59,7 @@ export const orderService = {
     const response = await axiosInstance.get<ApiResponse<Order>>(
       ORDER_ENDPOINTS.GET_ORDER_BY_ID(id)
     )
-    return getPayload(response.data)
+    return normalizeOrder(getPayload(response.data) as Order & { users?: Order["user"] })
   },
 
   /**
@@ -61,7 +69,7 @@ export const orderService = {
     const response = await axiosInstance.post<ApiResponse<Order>>(
       ORDER_ENDPOINTS.CANCEL_ORDER(id)
     )
-    return getPayload(response.data)
+    return normalizeOrder(getPayload(response.data) as Order & { users?: Order["user"] })
   },
 }
 

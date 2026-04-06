@@ -1,11 +1,12 @@
 import axiosInstance from "@/lib/axios"
-import type { ApiResponse, Product, ProductsResponse } from "@/types/api"
+import type { ApiResponse, Category, Product, ProductsResponse } from "@/types/api"
 
 const PRODUCT_ENDPOINTS = {
   GET_ALL: "/products",
   GET_BY_ID: (id: string) => `/products/${id}`,
   GET_BY_CATEGORY: (category: string) => `/products/category/${category}`,
   SEARCH: "/products/search",
+  GET_CATEGORIES: "/categories",
 }
 
 export interface GetProductsParams {
@@ -49,6 +50,13 @@ export const productService = {
     const response = await axiosInstance.get<ApiResponse<ProductsResponse>>(
       PRODUCT_ENDPOINTS.GET_BY_CATEGORY(category),
       { params }
+    )
+    return getPayload(response.data)
+  },
+
+  async getCategories(): Promise<Category[]> {
+    const response = await axiosInstance.get<ApiResponse<Category[]>>(
+      PRODUCT_ENDPOINTS.GET_CATEGORIES
     )
     return getPayload(response.data)
   },

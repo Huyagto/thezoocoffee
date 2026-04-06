@@ -1,215 +1,106 @@
 ﻿# The Zoo Coffee
 
-Huong dan chay du an tren may moi.
+## Nhanh
 
-## Cau truc du an
+```bash
+git clone <repo-url>
+cd TheZooCoffee
+cd server
+docker compose up --build
+```
 
-- `client`: frontend Next.js
-- `server`: backend Express + Prisma + MySQL + Redis
-- `server/docker-compose.yml`: chay MySQL va Redis local bang Docker
+Sau khi xong, mở:
 
-## Yeu cau can cai truoc
+- Khách hàng: http://localhost:3000
+- Admin: http://localhost:3001
+- Backend API: http://localhost:5000
 
-Can co san:
+## Cần có
 
 - Node.js 20+
 - Docker Desktop
 - Git
 
-Kiem tra nhanh:
+## Cách chạy nếu không dùng Docker full
 
-```bash
-node -v
-docker -v
-git --version
-```
+1. `cd server`
+2. `copy .env.example .env` và sửa `DATABASE_URL`
+3. `npm install`
+4. `npm run seed`
+5. `npm run dev`
 
-## 1. Clone source code
-
-```bash
-git clone <repo-url>
-cd TheZooCoffee
-```
-
-## 2. Chay database va redis bang Docker
-
-Tu thu muc `server`, chay:
-
-```bash
-cd server
-docker compose up -d
-```
-
-Sau khi chay xong:
-
-- MySQL: `localhost:13306`
-- Redis: `localhost:16379`
-
-Kiem tra container:
-
-```bash
-docker ps
-```
-
-## 3. Cai dependencies
-
-Cai backend:
-
-```bash
-cd server
-npm install
-```
-
-Cai frontend:
-
-```bash
-cd ../client
-npm install
-```
-
-## 4. Tao file env cho backend
-
-Trong thu muc `server`, tao file `.env`.
-Co the copy tu `.env.example` roi sua lai:
-
-```bash
-cd ../server
-copy .env.example .env
-```
-
-Hoac tao thu cong voi noi dung toi thieu sau:
-
-```env
-DATABASE_URL="mysql://prisma:123456@127.0.0.1:13306/thezoocoffee"
-PORT=5000
-CLIENT_URL="http://localhost:3000"
-JWT_SECRET=123456
-
-EMAIL_USER=your_email@gmail.com
-
-CLIENT_ID=your_google_client_id
-CLIENT_SECRET=your_google_client_secret
-REDIRECT_URI=https://developers.google.com/oauthplayground/
-REFRESH_TOKEN=your_google_refresh_token
-GOOGLE_LOGIN_URI="http://localhost:5000/api/user/google/callback"
-
-FACEBOOK_APP_ID=your_facebook_app_id
-FACEBOOK_APP_SECRET=your_facebook_app_secret
-FACEBOOK_REDIRECT_URI="http://localhost:5000/api/user/facebook/callback"
-```
-
-Luu y:
-
-- `PORT` cua backend phai la `5000`
-- `CLIENT_URL` cua frontend local phai la `http://localhost:3000`
-- Neu chua dung Google/Facebook login hoac email reset password, ban van co the chay login/register thuong. Chi can bo sung cac bien OAuth/mail khi muon dung cac tinh nang do.
-
-## 5. Env cho frontend
-
-Frontend hien tai mac dinh goi API toi:
-
-```text
-http://localhost:5000/api
-```
-
-Vi vay trong local thuong khong can tao `.env` cho `client`.
-
-Chi can tao neu ban muon doi API URL. Khi do, tao `client/.env.local`:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
-```
-
-## 6. Chay backend
-
-Tu thu muc `server`:
-
-```bash
-npm run dev
-```
-
-Neu chay dung, terminal se in ra:
-
-```text
-Example app listening on port 5000
-```
-
-## 7. Chay frontend
-
-Mo terminal moi, vao thu muc `client`:
+Frontend:
 
 ```bash
 cd client
+npm install
 npm run dev
 ```
 
-Mo trinh duyet:
+Admin:
 
-```text
-http://localhost:3000
+```bash
+cd admin
+npm install
+npm run dev
 ```
 
-## 8. Luu y quan trong ve database
+## Ports
 
-Repo hien co `server/prisma/schema.prisma` nhung khong co thu muc migration trong `server/prisma/migrations`.
-Dieu nay co nghia la:
+- Backend: `5000`
+- Client: `3000`
+- Admin: `3001`
+- MySQL: `13306`
+- Redis: `16379`
 
-- neu database da co schema/du lieu san thi app co the chay
-- neu may moi chua co schema, ban can tu tao schema database theo `schema.prisma` hoac import tu file dump SQL neu team co cung cap
+## Lưu ý
 
-Noi ngan gon: Docker chi tao MySQL container va database rong, khong tu seed bang du lieu cho ban.
+- Docker Compose hiện gồm `mysql`, `redis`, `server`
+- `server` sẽ chạy `npm run seed && npm start`
+- Backend mặc định dùng `http://localhost:5000/api`
+- Admin cần tài khoản có `role=admin`
 
-## 9. Cau hinh Google Login tren may moi
+## Dừng
 
-Neu muon dung Google login, trong Google Cloud Console can khai bao dung:
-
-Authorized redirect URI:
-
-```text
-http://localhost:5000/api/user/google/callback
+```bash
+docker compose down
 ```
 
-Authorized JavaScript origin:
-
-```text
-http://localhost:3000
-```
-
-Neu sai callback URL, Google se bao loi `redirect_uri_mismatch`.
-
-## 10. Tai khoan va session
-
-Backend dang dung cookie auth.
-Vay nen:
-
-- frontend phai chay o `http://localhost:3000`
-- backend phai chay o `http://localhost:5000`
-- khong nen doi sai port neu chua sua lai env va OAuth callback
-
-## 11. Kiem tra nhanh khi gap loi
+- Kiểm tra `client/.env.local` nếu đổi API URL.
+- Kiểm tra `docker ps` để xem MySQL/Redis có hoạt động.
+- Nếu vẫn lỗi schema, chạy `npm run prisma -- generate` trong `server`.
 
 Neu login khong duoc, kiem tra theo thu tu:
 
 1. Docker da chay chua:
+
 ```bash
 docker ps
 ```
 
 2. Backend da chay chua:
+
 ```text
 http://localhost:5000/api/user/login
 ```
 
 3. Frontend da chay chua:
+
 ```text
 http://localhost:3000
 ```
 
-4. File `server/.env` da dung `PORT=5000` va `CLIENT_URL=http://localhost:3000` chua
+4. Admin frontend neu can:
 
-5. Neu loi Google login, kiem tra lai redirect URI trong Google Cloud Console
+```text
+http://localhost:3001
+```
 
-## 12. Dung he thong
+5. File `server/.env` da dung `PORT=5000` va `CLIENT_URL=http://localhost:3000` chua
+
+6. Neu loi Google login, kiem tra lai redirect URI trong Google Cloud Console
+
+## 13. Dung he thong
 
 Dung frontend/backend bang `Ctrl + C` trong tung terminal.
 Dung MySQL + Redis container:
