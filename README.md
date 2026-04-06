@@ -1,39 +1,108 @@
-﻿# The Zoo Coffee
+# The Zoo Coffee
 
-## Nhanh
+## Tổng Quan
 
-```bash
-git clone <repo-url>
-cd TheZooCoffee
-cd server
-docker compose up --build
+- `client`: giao diện khách hàng, chạy ở `http://localhost:3000`
+- `admin`: giao diện quản trị, chạy ở `http://localhost:3001`
+- `server`: backend API, chạy ở `http://localhost:5000`
+
+## Yêu Cầu
+
+- Node.js `20+`
+- npm
+- Git
+- MySQL hoặc MariaDB
+
+Nếu bạn muốn chạy backend theo đúng cấu hình local hiện tại của repo, database mặc định là:
+
+```env
+DATABASE_URL="mysql://prisma:123456@127.0.0.1:13306/thezoocoffee"
 ```
 
-Sau khi xong, mở:
+## Chạy Trên Máy Mới
 
-- Khách hàng: http://localhost:3000
-- Admin: http://localhost:3001
-- Backend API: http://localhost:5000
+### 1. Clone repo
 
-## Cần có
+```bash
+git clone https://github.com/Huyagto/thezoocoffee.git
+cd thezoocoffee
+```
 
-- Node.js 20+
-- Docker Desktop
-- Git
+### 2. Cài package
 
-## Cách chạy nếu không dùng Docker full
+```bash
+cd server && npm install
+cd ../client && npm install
+cd ../admin && npm install
+```
 
-1. `cd server`
-2. `copy .env.example .env` và sửa `DATABASE_URL`
-3. `npm install`
-4. `npm run seed`
-5. `npm run dev`
+### 3. Tạo file môi trường
 
-Frontend:
+Tối thiểu cần:
+
+- `server/.env`
+- `admin/.env.local` nếu bạn có cấu hình riêng cho admin
+- `client/.env.local` nếu bạn có cấu hình riêng cho client
+
+Nếu repo có file `.env.example` thì copy từ đó trước rồi sửa lại.
+
+Ví dụ ở backend:
+
+```bash
+cd server
+copy .env.example .env
+```
+
+Sau đó kiểm tra lại các biến quan trọng:
+
+- `DATABASE_URL`
+- `PORT=5000`
+- `CLIENT_URL=http://localhost:3000`
+
+### 4. Chuẩn bị database
+
+Nếu bạn đã có MySQL local đúng cổng `13306`:
+
+```bash
+cd server
+npx prisma generate
+npx prisma db push
+```
+
+Nếu database local của project chưa chạy và bạn đang dùng script local trong repo:
+
+```bash
+cd server
+npm run db:start-local
+```
+
+Sau đó chạy tiếp:
+
+```bash
+npx prisma generate
+npx prisma db push
+```
+
+### 5. Seed dữ liệu
+
+```bash
+cd server
+npm run seed
+```
+
+### 6. Chạy từng app
+
+Backend:
+
+```bash
+cd server
+npm run dev
+```
+
+Client:
 
 ```bash
 cd client
-npm install
 npm run dev
 ```
 
@@ -41,77 +110,51 @@ Admin:
 
 ```bash
 cd admin
-npm install
 npm run dev
 ```
 
-## Ports
+## URL Mặc Định
 
-- Backend: `5000`
-- Client: `3000`
-- Admin: `3001`
-- MySQL: `13306`
-- Redis: `16379`
+- Client: `http://localhost:3000`
+- Admin: `http://localhost:3001`
+- Backend: `http://localhost:5000`
 
-## Lưu ý
+## Kiểm Tra Nhanh
 
-- Docker Compose hiện gồm `mysql`, `redis`, `server`
-- `server` sẽ chạy `npm run seed && npm start`
-- Backend mặc định dùng `http://localhost:5000/api`
-- Admin cần tài khoản có `role=admin`
+Sau khi chạy xong, bạn có thể kiểm tra:
 
-## Dừng
+- client mở được `http://localhost:3000`
+- admin mở được `http://localhost:3001`
+- backend phản hồi ở `http://localhost:5000/api/products`
 
-```bash
-docker compose down
-```
+## Lưu Ý Kiến Trúc API
 
-- Kiểm tra `client/.env.local` nếu đổi API URL.
-- Kiểm tra `docker ps` để xem MySQL/Redis có hoạt động.
-- Nếu vẫn lỗi schema, chạy `npm run prisma -- generate` trong `server`.
+Backend hiện chia route theo 3 nhóm:
 
-Neu login khong duoc, kiem tra theo thu tu:
+- `public/shared`: ví dụ `/api/products`, `/api/categories`, callback payment
+- `user`: ví dụ `/api/user/cart`, `/api/user/orders`, `/api/user/payments`
+- `admin`: ví dụ `/api/admin/products`, `/api/admin/orders`, `/api/admin/users`
 
-1. Docker da chay chua:
+## Một Lệnh Thiếu Thường Gặp
 
-```bash
-docker ps
-```
-
-2. Backend da chay chua:
-
-```text
-http://localhost:5000/api/user/login
-```
-
-3. Frontend da chay chua:
-
-```text
-http://localhost:3000
-```
-
-4. Admin frontend neu can:
-
-```text
-http://localhost:3001
-```
-
-5. File `server/.env` da dung `PORT=5000` va `CLIENT_URL=http://localhost:3000` chua
-
-6. Neu loi Google login, kiem tra lai redirect URI trong Google Cloud Console
-
-## 13. Dung he thong
-
-Dung frontend/backend bang `Ctrl + C` trong tung terminal.
-Dung MySQL + Redis container:
+Nếu Prisma lỗi schema:
 
 ```bash
 cd server
-docker compose down
+npm run prisma -- validate
+npx prisma generate
 ```
 
-Neu muon xoa ca volume database local:
+Nếu backend lỗi do database chưa lên:
 
 ```bash
-docker compose down -v
+cd server
+npm run db:start-local
+```
+
+Nếu cần seed lại dữ liệu:
+
+```bash
+cd server
+npm run seed
 ```
