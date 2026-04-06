@@ -90,6 +90,25 @@ class OrderController {
             throw new BadRequestError('Thong tin giao hang khong hop le');
         }
 
+        const currentUser = await prisma.users.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                address: true,
+            },
+        });
+
+        if (!currentUser) {
+            throw new NotFoundError('Nguoi dung khong ton tai');
+        }
+
+        if (!currentUser.name?.trim() || !currentUser.phone?.trim() || !currentUser.address?.trim()) {
+            throw new BadRequestError('Vui long cap nhat day du ho ten, so dien thoai va dia chi trong tai khoan truoc khi thanh toan');
+        }
+
         if (
             !shippingInfo.fullName?.trim() ||
             !shippingInfo.phone?.trim() ||

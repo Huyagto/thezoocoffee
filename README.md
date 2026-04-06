@@ -2,15 +2,20 @@
 
 ## Tổng quan
 
+Repo gồm 3 phần chính:
+
 - `server`: backend API chạy ở `http://localhost:5000`
 - `client`: giao diện khách hàng chạy ở `http://localhost:3000`
 - `admin`: giao diện quản trị chạy ở `http://localhost:3001`
 
-Repo này hiện chạy theo flow:
+Flow hiện tại của dự án:
 
-- MySQL từ WampServer
-- Prisma để migrate, generate client và thao tác schema
-- `server`, `client`, `admin` chạy local trên máy
+- MySQL chạy bằng `WampServer`
+- Prisma dùng để generate client và đồng bộ schema
+- Redis là tùy chọn
+  - nếu có `REDIS_URL` hợp lệ thì backend dùng Redis thật
+  - nếu không có Redis thì backend tự fallback sang memory cache để chạy local
+- Không còn dùng Docker
 
 ## Yêu cầu
 
@@ -19,7 +24,7 @@ Repo này hiện chạy theo flow:
 - Git
 - WampServer
 
-## Cách chạy
+## Cài đặt nhanh
 
 ### 1. Clone repo
 
@@ -30,36 +35,63 @@ cd thezoocoffee
 
 ### 2. Chuẩn bị MySQL bằng WampServer
 
-1. Mở WampServer
+1. Mở `WampServer`
 2. Bật dịch vụ MySQL
-3. Bảo đảm MySQL đang lắng nghe ở `127.0.0.1:3306`
+3. Đảm bảo MySQL đang chạy ở `127.0.0.1:3306`
 4. Tạo database `thezoocoffee`
 
-Bạn có thể kiểm tra nhanh MySQL bằng script:
+Bạn có thể kiểm tra nhanh kết nối MySQL:
 
 ```bash
 cd server
+npm install
 npm run db:check-wamp
 ```
 
-### 3. Chuẩn bị môi trường cho backend
+### 3. Tạo file môi trường cho backend
 
 ```bash
 cd server
 copy .env.example .env
 ```
 
-Thiết lập ít nhất các biến sau trong `server/.env`:
+Cấu hình tối thiểu trong `server/.env`:
 
 ```env
 PORT=5000
 CLIENT_URL="http://localhost:3000"
-DATABASE_URL="mysql://root:your_password@127.0.0.1:3306/thezoocoffee"
+ADMIN_URL="http://localhost:3001"
+DATABASE_URL="mysql://root:@127.0.0.1:3306/thezoocoffee"
 ```
 
-Nếu bạn đăng nhập MySQL bằng tài khoản khác của WampServer thì thay `root` và `your_password` theo máy của bạn.
+Nếu MySQL của Wamp có mật khẩu cho `root`, thay lại cho đúng máy của bạn:
 
-### 4. Cập nhật schema Prisma
+```env
+DATABASE_URL="mysql://root:mat_khau_cua_ban@127.0.0.1:3306/thezoocoffee"
+```
+
+Nếu muốn dùng Redis thật thay vì memory fallback, thêm:
+
+```env
+REDIS_URL="redis://127.0.0.1:6379"
+```
+
+Hoặc dùng Redis Cloud theo URL của bạn.
+
+### 4. Cài dependencies
+
+```bash
+cd server
+npm install
+
+cd ../client
+npm install
+
+cd ../admin
+npm install
+```
+
+### 5. Đồng bộ Prisma
 
 ```bash
 cd server
@@ -67,41 +99,47 @@ npx prisma generate
 npx prisma db push
 ```
 
-Nếu dự án đã có migrations và bạn muốn áp migration thay vì `db push`:
+Nếu sau này repo có migration hoàn chỉnh và bạn muốn áp migration thay vì `db push`:
 
 ```bash
 cd server
 npx prisma migrate deploy
 ```
 
-### 5. Seed dữ liệu
+### 6. Seed dữ liệu mẫu
 
 ```bash
 cd server
 npm run seed
 ```
 
-### 6. Chạy backend
+Seed hiện có:
+
+- danh mục
+- sản phẩm
+- nguyên liệu và công thức
+- tài khoản mẫu
+- coupon mẫu
+- đơn hàng mẫu để đánh giá best seller
+
+### 7. Chạy backend
 
 ```bash
 cd server
-npm install
 npm run dev
 ```
 
-### 7. Chạy client
+### 8. Chạy client
 
 ```bash
 cd client
-npm install
 npm run dev
 ```
 
-### 8. Chạy admin
+### 9. Chạy admin
 
 ```bash
 cd admin
-npm install
 npm run dev
 ```
 
@@ -114,11 +152,18 @@ npm run dev
 
 ## Kiểm tra nhanh
 
-Sau khi chạy xong, kiểm tra:
+Sau khi chạy xong, bạn có thể kiểm tra:
 
 - `http://localhost:3000`
 - `http://localhost:3001`
 - `http://localhost:5000/api/products`
+
+## Ghi chú quan trọng
+
+- Sau khi đổi `server/.env`, hãy restart backend
+- Một số tính năng như OTP/reset password có thể dùng Redis hoặc memory fallback
+- Nếu đổi mật khẩu thành công, người dùng sẽ bị đăng xuất và phải đăng nhập lại
+- Checkout hiện yêu cầu người dùng cập nhật đủ họ tên, số điện thoại và địa chỉ trong tài khoản trước khi thanh toán
 
 ## Kiến trúc API
 
@@ -131,14 +176,16 @@ Backend chia route theo 3 nhóm:
 - `admin`
   - ví dụ: `/api/admin/products`, `/api/admin/orders`, `/api/admin/users`
 
-## Dừng hệ thống
-
-- Dừng `client`, `admin`, `server`: nhấn `Ctrl + C` ở từng terminal
-- Dừng MySQL: tắt trong WampServer nếu cần
-
 ## Một số lệnh hữu ích
 
-Validate Prisma:
+Kiểm tra MySQL Wamp:
+
+```bash
+cd server
+npm run db:check-wamp
+```
+
+Validate Prisma schema:
 
 ```bash
 cd server
@@ -165,3 +212,8 @@ Seed lại dữ liệu:
 cd server
 npm run seed
 ```
+
+## Dừng hệ thống
+
+- Dừng `server`, `client`, `admin`: nhấn `Ctrl + C` ở từng terminal
+- Dừng MySQL: tắt trong WampServer nếu cần

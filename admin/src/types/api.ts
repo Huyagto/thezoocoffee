@@ -42,6 +42,8 @@ export interface Product {
     created_at?: string;
     updated_at?: string;
     recipes?: Recipe[];
+    sold_count?: number;
+    is_best_seller?: boolean;
 }
 
 export interface InventoryItem {

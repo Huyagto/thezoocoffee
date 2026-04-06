@@ -71,6 +71,7 @@ export function FeaturedProducts() {
                             description={product.description || ''}
                             price={formatCurrency(product.price)}
                             image={product.image || '/images/default.jpg'}
+                            badge={product.is_best_seller ? 'Best Seller' : undefined}
                         />
                     ))}
                 </div>

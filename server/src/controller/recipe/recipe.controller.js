@@ -1,5 +1,5 @@
 const prisma = require('../../config/prisma');
-const { NotFoundError, BadRequestError } = require('../../core/error.response');
+const { NotFoundError, BadRequestError, ConflictRequestError } = require('../../core/error.response');
 const { Created, OK } = require('../../core/success.response');
 
 class RecipeController {
@@ -39,6 +39,17 @@ class RecipeController {
         const { productId, recipes } = req.body;
         const normalizedProductId = Number(productId);
 
+        const normalizedRecipes = recipes.map((recipe) => ({
+            inventoryId: Number(recipe.inventoryId),
+            quantityUsed: Number(recipe.quantityUsed),
+        }));
+
+        const uniqueInventoryIds = new Set(normalizedRecipes.map((recipe) => recipe.inventoryId));
+
+        if (uniqueInventoryIds.size !== normalizedRecipes.length) {
+            throw new ConflictRequestError('Một nguyên liệu đang bị lặp trong cùng công thức');
+        }
+
         const product = await prisma.products.findUnique({
             where: { id: normalizedProductId },
             select: { id: true, name: true },
@@ -48,7 +59,7 @@ class RecipeController {
             throw new NotFoundError('San pham khong ton tai');
         }
 
-        const inventoryIds = recipes.map((recipe) => Number(recipe.inventoryId));
+        const inventoryIds = normalizedRecipes.map((recipe) => recipe.inventoryId);
         const inventoryItems = await prisma.inventory.findMany({
             where: {
                 id: {
@@ -70,10 +81,10 @@ class RecipeController {
             });
 
             await tx.recipes.createMany({
-                data: recipes.map((recipe) => ({
+                data: normalizedRecipes.map((recipe) => ({
                     product_id: normalizedProductId,
-                    inventory_id: Number(recipe.inventoryId),
-                    quantity_used: Number(recipe.quantityUsed),
+                    inventory_id: recipe.inventoryId,
+                    quantity_used: recipe.quantityUsed,
                 })),
             });
         });

@@ -128,11 +128,17 @@ export default function CheckoutPage() {
         email: currentUser?.email || '',
         address: currentUser?.address || '',
     };
-    const hasSavedAddress =
+    const isProfileComplete =
         Boolean(savedProfile.fullName.trim()) &&
         Boolean(savedProfile.phone.trim()) &&
         Boolean(savedProfile.email.trim()) &&
         Boolean(savedProfile.address.trim());
+    const hasSavedAddress = isProfileComplete;
+    const missingProfileFields = [
+        !savedProfile.fullName.trim() ? 'họ tên' : null,
+        !savedProfile.phone.trim() ? 'số điện thoại' : null,
+        !savedProfile.address.trim() ? 'địa chỉ' : null,
+    ].filter(Boolean) as string[];
 
     useEffect(() => {
         if (!currentUser) {
@@ -149,20 +155,20 @@ export default function CheckoutPage() {
     }, [currentUser]);
 
     useEffect(() => {
-        if (hasSavedAddress) {
-            setSelectedAddress('saved');
-            setFormData((prev) => ({
-                ...prev,
-                fullName: savedProfile.fullName,
-                phone: savedProfile.phone,
-                email: savedProfile.email,
-                address: savedProfile.address,
-            }));
+        if (!isProfileComplete) {
+            setSelectedAddress('other');
             return;
         }
 
-        setSelectedAddress('other');
-    }, [hasSavedAddress, savedProfile.address, savedProfile.email, savedProfile.fullName, savedProfile.phone]);
+        setSelectedAddress('saved');
+        setFormData((prev) => ({
+            ...prev,
+            fullName: savedProfile.fullName,
+            phone: savedProfile.phone,
+            email: savedProfile.email,
+            address: savedProfile.address,
+        }));
+    }, [isProfileComplete, savedProfile.address, savedProfile.email, savedProfile.fullName, savedProfile.phone]);
 
     if (!currentUser) {
         return null;
@@ -243,6 +249,15 @@ export default function CheckoutPage() {
     };
 
     const validateForm = (): boolean => {
+        if (!isProfileComplete) {
+            toast({
+                title: 'Thiếu thông tin tài khoản',
+                description: `Vui lòng cập nhật ${missingProfileFields.join(', ')} trong tài khoản trước khi thanh toán.`,
+                variant: 'destructive',
+            });
+            return false;
+        }
+
         if (!formData.fullName.trim()) {
             toast({
                 title: 'Thiếu thông tin',
@@ -373,6 +388,20 @@ export default function CheckoutPage() {
                                 </h2>
 
                                 <div className="space-y-4">
+                                    {!isProfileComplete ? (
+                                        <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
+                                            <p className="font-medium text-foreground">
+                                                Bạn cần cập nhật thông tin tài khoản trước khi thanh toán.
+                                            </p>
+                                            <p className="mt-2 text-sm text-muted-foreground">
+                                                Vui lòng bổ sung đầy đủ họ tên, số điện thoại và địa chỉ trong trang tài khoản, sau đó quay lại bước thanh toán.
+                                            </p>
+                                            <Button asChild className="mt-4">
+                                                <Link href="/profile">Đi tới tài khoản</Link>
+                                            </Button>
+                                        </div>
+                                    ) : null}
+
                                     <div className="space-y-2">
                                         <Label>Chọn địa chỉ giao hàng</Label>
                                         <RadioGroup
@@ -631,7 +660,7 @@ export default function CheckoutPage() {
                                     <Button
                                         size="lg"
                                         onClick={handlePlaceOrder}
-                                        disabled={isProcessing}
+                                        disabled={isProcessing || !isProfileComplete}
                                         className="mt-6 w-full gap-2"
                                     >
                                         {isProcessing ? (

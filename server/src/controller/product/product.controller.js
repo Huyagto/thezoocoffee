@@ -20,6 +20,59 @@ function normalizeProduct(product) {
     };
 }
 
+async function getProductSalesStats(productIds) {
+    if (!productIds.length) {
+        return {
+            soldCountMap: new Map(),
+            bestSellerIds: new Set(),
+        };
+    }
+
+    const sales = await prisma.order_items.groupBy({
+        by: ['product_id'],
+        where: {
+            product_id: {
+                in: productIds,
+            },
+            orders: {
+                order_status: {
+                    not: 'cancelled',
+                },
+                OR: [{ order_status: 'completed' }, { payment_status: 'paid' }],
+            },
+        },
+        _sum: {
+            quantity: true,
+        },
+        orderBy: {
+            _sum: {
+                quantity: 'desc',
+            },
+        },
+    });
+
+    const soldCountMap = new Map(sales.map((item) => [item.product_id, Number(item._sum.quantity || 0)]));
+    const bestSellerIds = new Set(
+        sales
+            .filter((item) => Number(item._sum.quantity || 0) > 0)
+            .slice(0, 4)
+            .map((item) => item.product_id),
+    );
+
+    return {
+        soldCountMap,
+        bestSellerIds,
+    };
+}
+
+function attachProductSales(products, soldCountMap, bestSellerIds) {
+    return products.map((product) => ({
+        ...normalizeProduct(product),
+        sold_count: soldCountMap.get(product.id) || 0,
+        is_best_seller: bestSellerIds.has(product.id),
+    }));
+}
+
 class ProductController {
     async getProducts(req, res) {
         const { page = 1, limit = 10, sort = 'newest', search } = req.query;
@@ -27,6 +80,7 @@ class ProductController {
         const pageNum = parseInt(page, 10);
         const limitNum = parseInt(limit, 10);
         const offset = (pageNum - 1) * limitNum;
+        const shouldSortByPopularity = sort === 'popular';
 
         let orderBy = { created_at: 'desc' };
         if (sort === 'price_asc') {
@@ -44,7 +98,7 @@ class ProductController {
               }
             : {};
 
-        const [products, total] = await Promise.all([
+        const [products, total, allProductIds] = await Promise.all([
             prisma.products.findMany({
                 where,
                 select: {
@@ -78,16 +132,38 @@ class ProductController {
                     },
                 },
                 orderBy,
-                skip: offset,
-                take: limitNum,
+                ...(shouldSortByPopularity ? {} : { skip: offset, take: limitNum }),
             }),
             prisma.products.count({ where }),
+            prisma.products.findMany({
+                where,
+                select: {
+                    id: true,
+                },
+            }),
         ]);
+
+        const { soldCountMap, bestSellerIds } = await getProductSalesStats(allProductIds.map((product) => product.id));
+        const productsWithSales = attachProductSales(products, soldCountMap, bestSellerIds);
+
+        if (shouldSortByPopularity) {
+            productsWithSales.sort((first, second) => {
+                if (second.sold_count !== first.sold_count) {
+                    return second.sold_count - first.sold_count;
+                }
+
+                return new Date(second.created_at || 0).getTime() - new Date(first.created_at || 0).getTime();
+            });
+        }
+
+        const paginatedProducts = shouldSortByPopularity
+            ? productsWithSales.slice(offset, offset + limitNum)
+            : productsWithSales;
 
         new OK({
             message: 'Lấy sản phẩm thành công',
             metadata: {
-                products: products.map(normalizeProduct),
+                products: paginatedProducts,
                 total,
                 page: pageNum,
                 limit: limitNum,
@@ -102,6 +178,7 @@ class ProductController {
         const pageNum = parseInt(page, 10);
         const limitNum = parseInt(limit, 10);
         const offset = (pageNum - 1) * limitNum;
+        const shouldSortByPopularity = sort === 'popular';
 
         let orderBy = { created_at: 'desc' };
         if (sort === 'price_asc') {
@@ -119,7 +196,7 @@ class ProductController {
             },
         };
 
-        const [products, total] = await Promise.all([
+        const [products, total, allProductIds] = await Promise.all([
             prisma.products.findMany({
                 where,
                 select: {
@@ -153,16 +230,38 @@ class ProductController {
                     },
                 },
                 orderBy,
-                skip: offset,
-                take: limitNum,
+                ...(shouldSortByPopularity ? {} : { skip: offset, take: limitNum }),
             }),
             prisma.products.count({ where }),
+            prisma.products.findMany({
+                where,
+                select: {
+                    id: true,
+                },
+            }),
         ]);
+
+        const { soldCountMap, bestSellerIds } = await getProductSalesStats(allProductIds.map((product) => product.id));
+        const productsWithSales = attachProductSales(products, soldCountMap, bestSellerIds);
+
+        if (shouldSortByPopularity) {
+            productsWithSales.sort((first, second) => {
+                if (second.sold_count !== first.sold_count) {
+                    return second.sold_count - first.sold_count;
+                }
+
+                return new Date(second.created_at || 0).getTime() - new Date(first.created_at || 0).getTime();
+            });
+        }
+
+        const paginatedProducts = shouldSortByPopularity
+            ? productsWithSales.slice(offset, offset + limitNum)
+            : productsWithSales;
 
         new OK({
             message: 'Lấy sản phẩm theo danh mục thành công',
             metadata: {
-                products: products.map(normalizeProduct),
+                products: paginatedProducts,
                 total,
                 page: pageNum,
                 limit: limitNum,
@@ -185,6 +284,18 @@ class ProductController {
 
         if (!category) {
             throw new NotFoundError('Danh mục không tồn tại');
+        }
+
+        const existingNameInCategory = await prisma.products.findFirst({
+            where: {
+                name: name.trim(),
+                category_id: Number(categoryId),
+            },
+            select: { id: true },
+        });
+
+        if (existingNameInCategory) {
+            throw new ConflictRequestError('Tên sản phẩm đã tồn tại trong danh mục này');
         }
 
         if (sku?.trim()) {
@@ -248,6 +359,18 @@ class ProductController {
 
         if (!category) {
             throw new NotFoundError('Danh mục không tồn tại');
+        }
+
+        const existingNameInCategory = await prisma.products.findFirst({
+            where: {
+                name: name.trim(),
+                category_id: Number(categoryId),
+            },
+            select: { id: true },
+        });
+
+        if (existingNameInCategory) {
+            throw new ConflictRequestError('Tên sản phẩm đã tồn tại trong danh mục này');
         }
 
         if (sku?.trim()) {
@@ -369,6 +492,23 @@ class ProductController {
             });
             if (!category) {
                 throw new NotFoundError('Danh mục không tồn tại');
+            }
+        }
+
+        const targetName = name ? name.trim() : existingProduct.name;
+        const targetCategoryId = categoryId ? Number(categoryId) : existingProduct.category_id;
+
+        if (targetCategoryId) {
+            const nameConflict = await prisma.products.findFirst({
+                where: {
+                    name: targetName,
+                    category_id: targetCategoryId,
+                },
+                select: { id: true },
+            });
+
+            if (nameConflict && nameConflict.id !== productId) {
+                throw new ConflictRequestError('Tên sản phẩm đã tồn tại trong danh mục này');
             }
         }
 

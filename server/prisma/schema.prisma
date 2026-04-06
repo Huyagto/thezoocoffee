@@ -71,6 +71,8 @@ model inventory {
   updated_at             DateTime?                @default(now()) @db.Timestamp(0)
   inventory_transactions inventory_transactions[]
   recipes                recipes[]
+
+  @@unique([name, unit], map: "inventory_name_unit_key")
 }
 
 model inventory_transactions {
@@ -155,6 +157,7 @@ model products {
   recipes     recipes[]
 
   @@index([category_id], map: "idx_products_category_id")
+  @@unique([name, category_id], map: "products_name_category_id_key")
 }
 
 model recipes {
@@ -168,6 +171,7 @@ model recipes {
 
   @@index([inventory_id], map: "idx_recipes_inventory_id")
   @@index([product_id], map: "idx_recipes_product_id")
+  @@unique([product_id, inventory_id], map: "recipes_product_inventory_key")
 }
 
 model users {

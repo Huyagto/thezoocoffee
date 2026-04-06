@@ -16,7 +16,7 @@ export function BestSellers() {
     useEffect(() => {
         const fetchProducts = async () => {
             try {
-                const response = await productService.getAllProducts({ limit: 2, sort: 'newest' });
+                const response = await productService.getAllProducts({ limit: 2, sort: 'popular' });
                 setProducts(response.products || []);
             } catch (error) {
                 console.error('Failed to fetch products:', error);
@@ -89,9 +89,9 @@ export function BestSellers() {
                                 <div className="flex items-center gap-2">
                                     <div className="flex items-center gap-1">
                                         <Star className="h-4 w-4 fill-accent text-accent" />
-                                        <span className="text-sm font-semibold text-foreground">4.8</span>
+                                        <span className="text-sm font-semibold text-foreground">{item.sold_count || 0}</span>
                                     </div>
-                                    <span className="text-sm text-muted-foreground">(Món yêu thích)</span>
+                                    <span className="text-sm text-muted-foreground">(lượt bán thành công)</span>
                                 </div>
                                 <h3 className="font-serif text-xl font-semibold text-card-foreground">{item.name}</h3>
                                 <p className="text-sm leading-relaxed text-muted-foreground">

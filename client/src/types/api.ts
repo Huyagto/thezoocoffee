@@ -45,6 +45,8 @@ export interface Product {
   category?: string
   stock?: number
   badge?: string
+  sold_count?: number
+  is_best_seller?: boolean
   rating?: number
   reviewCount?: number
   createdAt?: string

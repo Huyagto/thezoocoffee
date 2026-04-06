@@ -20,6 +20,12 @@ const USER_ITEMS = [
         password: 'admin123',
         role: 'admin',
     },
+    {
+        name: 'Khách hàng mẫu',
+        email: 'customer@thezoocoffee.vn',
+        password: 'customer123',
+        role: 'customer',
+    },
 ];
 
 const INVENTORY_ITEMS = [
@@ -144,7 +150,86 @@ const RECIPE_DEFINITIONS = [
     },
 ];
 
+const COUPON_ITEMS = [
+    {
+        code: 'WELCOME10',
+        name: 'Chào khách mới',
+        description: 'Giảm 10% cho đơn hàng từ 50.000đ.',
+        discount_type: 'percentage',
+        discount_value: '10.00',
+        min_order_value: '50000.00',
+        max_discount_amount: '30000.00',
+        usage_limit: 100,
+        used_count: 0,
+        starts_at: new Date('2026-01-01T00:00:00.000Z'),
+        expires_at: new Date('2026-12-31T23:59:59.000Z'),
+        status: 'active',
+    },
+    {
+        code: 'FREESHIP30K',
+        name: 'Hỗ trợ phí giao hàng',
+        description: 'Giảm trực tiếp 30.000đ cho đơn từ 99.000đ.',
+        discount_type: 'fixed',
+        discount_value: '30000.00',
+        min_order_value: '99000.00',
+        max_discount_amount: null,
+        usage_limit: 200,
+        used_count: 0,
+        starts_at: new Date('2026-01-01T00:00:00.000Z'),
+        expires_at: new Date('2026-12-31T23:59:59.000Z'),
+        status: 'active',
+    },
+    {
+        code: 'COMBO15',
+        name: 'Ưu đãi giờ vàng',
+        description: 'Giảm 15% cho đơn hàng từ 120.000đ.',
+        discount_type: 'percentage',
+        discount_value: '15.00',
+        min_order_value: '120000.00',
+        max_discount_amount: '50000.00',
+        usage_limit: 80,
+        used_count: 0,
+        starts_at: new Date('2026-01-01T00:00:00.000Z'),
+        expires_at: new Date('2026-12-31T23:59:59.000Z'),
+        status: 'active',
+    },
+];
+
+const SAMPLE_ORDER_DEFINITIONS = [
+    {
+        orderCode: 'SEED-ORDER-001',
+        customerEmail: 'customer@thezoocoffee.vn',
+        shippingAddress: 'Nguyễn Văn A | 0900000001 | customer@thezoocoffee.vn | 12 Nguyễn Huệ, Quận 1, TP.HCM',
+        note: 'Đơn hàng mẫu cho thống kê bán chạy',
+        items: [
+            { productSku: 'CAP001', quantity: 3 },
+            { productSku: 'MOC001', quantity: 2 },
+        ],
+    },
+    {
+        orderCode: 'SEED-ORDER-002',
+        customerEmail: 'customer@thezoocoffee.vn',
+        shippingAddress: 'Nguyễn Văn A | 0900000001 | customer@thezoocoffee.vn | 12 Nguyễn Huệ, Quận 1, TP.HCM',
+        note: 'Đơn hàng mẫu cho thống kê bán chạy',
+        items: [
+            { productSku: 'CAP001', quantity: 2 },
+            { productSku: 'MTL001', quantity: 1 },
+        ],
+    },
+    {
+        orderCode: 'SEED-ORDER-003',
+        customerEmail: 'customer@thezoocoffee.vn',
+        shippingAddress: 'Nguyễn Văn A | 0900000001 | customer@thezoocoffee.vn | 12 Nguyễn Huệ, Quận 1, TP.HCM',
+        note: 'Đơn hàng mẫu cho thống kê bán chạy',
+        items: [
+            { productSku: 'ESP001', quantity: 4 },
+            { productSku: 'MOC001', quantity: 1 },
+        ],
+    },
+];
+
 const PRODUCT_IMAGE_DIR = path.resolve(__dirname, '../../client/public/images');
+const SHIPPING_FEE = 30000;
 
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -169,7 +254,7 @@ function hasCloudinaryConfig() {
     return Boolean(
         process.env.CLOUDINARY_CLOUD_NAME &&
             process.env.CLOUDINARY_API_KEY &&
-            process.env.CLOUDINARY_API_SECRET
+            process.env.CLOUDINARY_API_SECRET,
     );
 }
 
@@ -255,6 +340,101 @@ async function upsertProduct(item) {
         update: item,
         create: item,
     });
+}
+
+async function upsertCoupon(item) {
+    return prisma.coupons.upsert({
+        where: { code: item.code },
+        update: item,
+        create: item,
+    });
+}
+
+async function seedSampleOrders(productMap) {
+    const users = await prisma.users.findMany({
+        where: {
+            email: {
+                in: [...new Set(SAMPLE_ORDER_DEFINITIONS.map((item) => item.customerEmail))],
+            },
+        },
+        select: {
+            id: true,
+            email: true,
+        },
+    });
+
+    const userMap = new Map(users.map((user) => [user.email, user]));
+    const orderCodes = SAMPLE_ORDER_DEFINITIONS.map((order) => order.orderCode);
+
+    await prisma.orders.deleteMany({
+        where: {
+            order_code: {
+                in: orderCodes,
+            },
+        },
+    });
+
+    for (const orderDefinition of SAMPLE_ORDER_DEFINITIONS) {
+        const customer = userMap.get(orderDefinition.customerEmail);
+
+        if (!customer) {
+            throw new Error(`Không tìm thấy người dùng ${orderDefinition.customerEmail} để seed đơn hàng`);
+        }
+
+        const normalizedItems = orderDefinition.items.map((item) => {
+            const product = productMap[item.productSku];
+
+            if (!product) {
+                throw new Error(`Không tìm thấy sản phẩm có SKU ${item.productSku} để seed đơn hàng`);
+            }
+
+            const unitPrice = Number(product.price || 0);
+
+            return {
+                product_id: product.id,
+                quantity: item.quantity,
+                unit_price: unitPrice,
+                subtotal: unitPrice * item.quantity,
+            };
+        });
+
+        const totalAmount =
+            normalizedItems.reduce((sum, item) => sum + item.subtotal, 0) + SHIPPING_FEE;
+
+        const order = await prisma.orders.create({
+            data: {
+                user_id: customer.id,
+                order_code: orderDefinition.orderCode,
+                discount_amount: 0,
+                total_amount: totalAmount,
+                shipping_address: orderDefinition.shippingAddress,
+                note: orderDefinition.note,
+                order_status: 'completed',
+                payment_status: 'paid',
+            },
+        });
+
+        await prisma.order_items.createMany({
+            data: normalizedItems.map((item) => ({
+                ...item,
+                order_id: order.id,
+            })),
+        });
+
+        await prisma.payments.create({
+            data: {
+                order_id: order.id,
+                amount: totalAmount,
+                method: 'cash',
+                status: 'success',
+                transaction_code: `${orderDefinition.orderCode}-PAY`,
+                paid_at: new Date(),
+            },
+        });
+
+        console.log(`  - Đã seed đơn hàng mẫu: ${orderDefinition.orderCode}`);
+        await sleep(100);
+    }
 }
 
 async function main() {
@@ -356,6 +536,16 @@ async function main() {
             await sleep(100);
         }
     }
+
+    console.log('Đang seed mã giảm giá...');
+    for (const item of COUPON_ITEMS) {
+        const record = await upsertCoupon(item);
+        console.log(`  - Đã seed coupon: ${record.code}`);
+        await sleep(100);
+    }
+
+    console.log('Đang seed đơn hàng mẫu...');
+    await seedSampleOrders(productMap);
 
     console.log('Seed hoàn tất thành công.');
 }

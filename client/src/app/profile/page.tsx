@@ -56,7 +56,7 @@ function ProfileField({
 
 export default function ProfilePage() {
     const router = useRouter();
-    const { user: currentUser, isLoading, logout, refreshUser } = useAuth();
+    const { user: currentUser, isLoading, logout, refreshUser, setUser } = useAuth();
     const { toast } = useToast();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -80,6 +80,12 @@ export default function ProfilePage() {
         newPassword: false,
         confirmPassword: false,
     });
+    const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
+    const missingProfileFields = [
+        !currentUser?.name?.trim() ? 'Họ và tên' : null,
+        !currentUser?.phone?.trim() ? 'Số điện thoại' : null,
+        !currentUser?.address?.trim() ? 'Địa chỉ' : null,
+    ].filter(Boolean) as string[];
 
     useEffect(() => {
         let isMounted = true;
@@ -311,8 +317,11 @@ export default function ProfilePage() {
             setOtpTimeLeft(0);
             toast({
                 title: 'Đổi mật khẩu thành công',
-                description: 'Mật khẩu của bạn đã được cập nhật.',
+                description: 'Mật khẩu của bạn đã được cập nhật. Vui lòng đăng nhập lại để tiếp tục.',
             });
+            setUser(null);
+            router.push('/login');
+            router.refresh();
         } catch (error) {
             toast({
                 title: 'Xác thực OTP thất bại',
@@ -379,6 +388,15 @@ export default function ProfilePage() {
                                 </div>
 
                                 <div className="grid gap-4 sm:grid-cols-2">
+                                    {missingProfileFields.length > 0 ? (
+                                        <div className="sm:col-span-2 rounded-xl border border-destructive/50 bg-destructive/5 p-4">
+                                            <p className="font-medium text-destructive">Thông tin còn thiếu</p>
+                                            <p className="mt-1 text-sm text-destructive">
+                                                {missingProfileFields.join(', ')} chưa được cập nhật. Vui lòng bổ sung để có thể thanh toán.
+                                            </p>
+                                        </div>
+                                    ) : null}
+
                                     <ProfileField icon={User} label="Họ và tên" value={currentUser.name} />
                                     <ProfileField icon={Mail} label="Email" value={currentUser.email} />
                                     <ProfileField icon={Phone} label="Số điện thoại" value={currentUser.phone} />
@@ -467,7 +485,15 @@ export default function ProfilePage() {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsPasswordSectionOpen((prev) => !prev)}
+                                        className="mb-4 w-full rounded-lg border border-border px-4 py-3 text-left text-sm font-medium text-primary"
+                                    >
+                                        {isPasswordSectionOpen ? 'Thu gọn phần đổi mật khẩu' : 'Hiển thị phần đổi mật khẩu'}
+                                    </button>
+
+                                    {isPasswordSectionOpen ? <div className="space-y-3">
                                         {[
                                             { id: 'oldPassword', label: 'Mật khẩu hiện tại' },
                                             { id: 'newPassword', label: 'Mật khẩu mới' },
@@ -542,7 +568,7 @@ export default function ProfilePage() {
                                                 </Button>
                                             </div>
                                         ) : null}
-                                    </div>
+                                    </div> : null}
                                 </div>
 
                                 <Separator />

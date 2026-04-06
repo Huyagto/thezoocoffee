@@ -412,6 +412,7 @@ class UserController {
             data: { password_hash: hashedPassword },
         });
 
+        clearAuthCookies(res);
         res.clearCookie('tokenVerifyForgotPassword');
         await redisClient.del(`otp:${email}`);
 
@@ -507,6 +508,7 @@ class UserController {
             data: { password_hash: newPassword },
         });
 
+        clearAuthCookies(res);
         await redisClient.del(`otp:reset-password:${findUser.email}`);
 
         new OK({
