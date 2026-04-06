@@ -9,6 +9,8 @@ const { validateCreateCategory, validateUpdateCategory } = require('../../../val
 const router = express.Router();
 
 router.use(authUser, requireAdmin);
+router.get('/', asyncHandler(categoryAdminController.getCategories));
+router.get('/:id', asyncHandler(categoryAdminController.getCategory));
 router.post('/', validateCreateCategory, asyncHandler(categoryAdminController.createCategory));
 router.put('/:id', validateUpdateCategory, asyncHandler(categoryAdminController.updateCategory));
 router.patch('/:id/status', asyncHandler(categoryAdminController.toggleCategoryStatus));

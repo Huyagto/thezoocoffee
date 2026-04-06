@@ -10,6 +10,7 @@ const { validateCreateProductWithRecipes } = require('../../../validators/recipe
 const router = express.Router();
 
 router.use(authUser, requireAdmin);
+router.get('/', asyncHandler(productAdminController.getProducts));
 router.post('/', validateCreateProduct, asyncHandler(productAdminController.createProduct));
 router.post('/with-recipes', validateCreateProductWithRecipes, asyncHandler(productAdminController.createProductWithRecipes));
 router.put('/:id', validateUpdateProduct, asyncHandler(productAdminController.updateProduct));

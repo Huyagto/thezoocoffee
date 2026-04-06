@@ -1,59 +1,35 @@
 require('dotenv').config();
 
+const path = require('path');
 const bcrypt = require('bcrypt');
+
 const prisma = require('../src/config/prisma');
+const cloudinary = require('../src/config/cloudinary');
 
-async function waitForDatabase(maxRetries = 5, delay = 2000) {
-    for (let i = 0; i < maxRetries; i++) {
-        try {
-            // Try a simple query instead of $connect()
-            await prisma.$queryRaw`SELECT 1`;
-            console.log('✅ Database connection established');
-            return;
-        } catch (error) {
-            console.log(`⏳ Waiting for database... Attempt ${i + 1}/${maxRetries}`);
-            await new Promise((resolve) => setTimeout(resolve, delay));
-        }
-    }
-    throw new Error('❌ Could not connect to database after maximum retries');
-}
-
-const categories = [
-    {
-        name: 'Cà phê',
-        status: 'active',
-    },
-    {
-        name: 'Trà',
-        status: 'active',
-    },
-    {
-        name: 'Đồ uống đá xay',
-        status: 'active',
-    },
-    {
-        name: 'Bánh ngọt',
-        status: 'active',
-    },
+const CATEGORY_ITEMS = [
+    { name: 'Cà phê', status: 'active' },
+    { name: 'Trà', status: 'active' },
+    { name: 'Đồ uống đá xay', status: 'active' },
+    { name: 'Bánh ngọt', status: 'active' },
 ];
 
-const users = [
+const USER_ITEMS = [
     {
         name: 'Quản trị chính',
         email: 'admin@thezoocoffee.vn',
-        password: 'admin123', // Plain password, will be hashed
+        password: 'admin123',
         role: 'admin',
     },
 ];
 
-const inventoryItems = [
+const INVENTORY_ITEMS = [
     {
         name: 'Hạt cà phê Arabica',
         unit: 'kg',
         quantity: '50.00',
         min_quantity: '5.00',
         cost_price: '200000.00',
-        supplier_name: 'Café House',
+        supplier_name: 'Cafe House',
         status: 'available',
     },
     {
@@ -71,7 +47,7 @@ const inventoryItems = [
         quantity: '80.00',
         min_quantity: '10.00',
         cost_price: '15000.00',
-        supplier_name: 'Cường Đạt',
+        supplier_name: 'Cuong Dat',
         status: 'available',
     },
     {
@@ -94,7 +70,7 @@ const inventoryItems = [
     },
 ];
 
-const productItems = [
+const PRODUCT_ITEMS = [
     {
         name: 'Espresso',
         price: '45000.00',
@@ -102,6 +78,7 @@ const productItems = [
         sku: 'ESP001',
         status: 'available',
         categoryName: 'Cà phê',
+        imageSource: 'espresso.jpg',
     },
     {
         name: 'Cappuccino',
@@ -110,6 +87,7 @@ const productItems = [
         sku: 'CAP001',
         status: 'available',
         categoryName: 'Cà phê',
+        imageSource: 'cappuccino.jpg',
     },
     {
         name: 'Mocha',
@@ -118,18 +96,20 @@ const productItems = [
         sku: 'MOC001',
         status: 'available',
         categoryName: 'Cà phê',
+        imageSource: 'mocha.jpg',
     },
     {
         name: 'Matcha Latte',
         price: '78000.00',
-        description: 'Matcha Nhật Bản hòa quyện sữa tươi.',
+        description: 'Matcha Nhật Bản hòa quyện cùng sữa tươi.',
         sku: 'MTL001',
         status: 'available',
         categoryName: 'Trà',
+        imageSource: 'matcha-latte.jpg',
     },
 ];
 
-const recipeDefinitions = [
+const RECIPE_DEFINITIONS = [
     {
         productSku: 'ESP001',
         items: [
@@ -163,6 +143,58 @@ const recipeDefinitions = [
         ],
     },
 ];
+
+const PRODUCT_IMAGE_DIR = path.resolve(__dirname, '../../client/public/images');
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForDatabase(maxRetries = 10, delay = 3000) {
+    for (let index = 0; index < maxRetries; index += 1) {
+        try {
+            await prisma.$queryRaw`SELECT 1`;
+            console.log('Đã kết nối cơ sở dữ liệu');
+            return;
+        } catch (error) {
+            console.log(`Đang chờ cơ sở dữ liệu... Lần ${index + 1}/${maxRetries}`);
+            await sleep(delay);
+        }
+    }
+
+    throw new Error('Không thể kết nối cơ sở dữ liệu sau số lần thử tối đa');
+}
+
+function hasCloudinaryConfig() {
+    return Boolean(
+        process.env.CLOUDINARY_CLOUD_NAME &&
+            process.env.CLOUDINARY_API_KEY &&
+            process.env.CLOUDINARY_API_SECRET
+    );
+}
+
+async function uploadProductImageToCloudinary(product) {
+    if (!hasCloudinaryConfig()) {
+        console.log(`Bỏ qua upload Cloudinary cho ${product.name}: thiếu cấu hình Cloudinary`);
+        return null;
+    }
+
+    if (!product.imageSource) {
+        return null;
+    }
+
+    const localImagePath = path.join(PRODUCT_IMAGE_DIR, product.imageSource);
+    const publicId = `thezoocoffee/products/${product.sku.toLowerCase()}`;
+
+    const uploaded = await cloudinary.uploader.upload(localImagePath, {
+        public_id: publicId,
+        overwrite: true,
+        invalidate: true,
+        resource_type: 'image',
+    });
+
+    return uploaded.secure_url;
+}
 
 async function upsertInventory(item) {
     const existing = await prisma.inventory.findFirst({
@@ -200,7 +232,6 @@ async function upsertUser(item) {
     });
 
     const hashedPassword = await bcrypt.hash(item.password, 10);
-
     const userData = {
         name: item.name,
         email: item.email,
@@ -227,58 +258,67 @@ async function upsertProduct(item) {
 }
 
 async function main() {
-    console.log('🔄 Connecting to database...');
+    console.log('Đang kết nối cơ sở dữ liệu...');
     await waitForDatabase();
 
-    console.log('🌱 Seeding categories data...');
+    console.log('Đang seed danh mục...');
     const categoryMap = {};
-
-    for (const item of categories) {
+    for (const item of CATEGORY_ITEMS) {
         const record = await upsertCategory(item);
         categoryMap[record.name] = record;
-        console.log(`  - Category seeded: ${record.name}`);
-        await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
+        console.log(`  - Đã seed danh mục: ${record.name}`);
+        await sleep(100);
     }
 
-    console.log('👥 Seeding users data...');
-    const userMap = {};
-
-    for (const item of users) {
+    console.log('Đang seed người dùng...');
+    for (const item of USER_ITEMS) {
         const record = await upsertUser(item);
-        userMap[record.email] = record;
-        console.log(`  - User seeded: ${record.name} (${record.email})`);
-        await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
+        console.log(`  - Đã seed người dùng: ${record.name} (${record.email})`);
+        await sleep(100);
     }
 
-    console.log('📦 Seeding inventory data...');
+    console.log('Đang seed kho nguyên liệu...');
     const inventoryMap = {};
-
-    for (const item of inventoryItems) {
+    for (const item of INVENTORY_ITEMS) {
         const record = await upsertInventory(item);
         inventoryMap[record.name] = record;
-        console.log(`  - Inventory seeded: ${record.name}`);
-        await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
+        console.log(`  - Đã seed nguyên liệu: ${record.name}`);
+        await sleep(100);
     }
 
-    console.log('🛍️  Seeding product data...');
-    const productMap = {};
+    console.log('Đang tải ảnh sản phẩm lên Cloudinary...');
+    const productImageMap = {};
+    for (const item of PRODUCT_ITEMS) {
+        const uploadedUrl = await uploadProductImageToCloudinary(item);
+        productImageMap[item.sku] = uploadedUrl;
+        if (uploadedUrl) {
+            console.log(`  - Đã tải ảnh cho ${item.name}`);
+        }
+    }
 
-    for (const item of productItems) {
+    console.log('Đang seed sản phẩm...');
+    const productMap = {};
+    for (const item of PRODUCT_ITEMS) {
         const category = categoryMap[item.categoryName];
+
         if (!category) {
-            throw new Error(`Không tìm thấy category với tên ${item.categoryName}`);
+            throw new Error(`Không tìm thấy danh mục có tên ${item.categoryName}`);
         }
 
         const productData = {
-            ...item,
+            name: item.name,
+            price: item.price,
+            description: item.description,
+            sku: item.sku,
+            status: item.status,
+            image: productImageMap[item.sku],
             category_id: category.id,
         };
-        delete productData.categoryName;
 
         const record = await upsertProduct(productData);
         productMap[record.sku] = record;
-        console.log(`  - Product seeded: ${record.name}`);
-        await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
+        console.log(`  - Đã seed sản phẩm: ${record.name}`);
+        await sleep(100);
     }
 
     const recipeProductIds = Object.values(productMap).map((product) => product.id);
@@ -287,20 +327,21 @@ async function main() {
             product_id: { in: recipeProductIds },
         },
     });
-    await new Promise((resolve) => setTimeout(resolve, 200)); // Delay after delete
+    await sleep(200);
 
-    console.log('🍳 Seeding recipe data...');
-
-    for (const recipeDefinition of recipeDefinitions) {
+    console.log('Đang seed công thức...');
+    for (const recipeDefinition of RECIPE_DEFINITIONS) {
         const product = productMap[recipeDefinition.productSku];
+
         if (!product) {
-            throw new Error(`Không tìm thấy product với SKU ${recipeDefinition.productSku}`);
+            throw new Error(`Không tìm thấy sản phẩm có SKU ${recipeDefinition.productSku}`);
         }
 
         for (const item of recipeDefinition.items) {
             const inventory = inventoryMap[item.inventoryName];
+
             if (!inventory) {
-                throw new Error(`Không tìm thấy inventory với tên ${item.inventoryName}`);
+                throw new Error(`Không tìm thấy nguyên liệu có tên ${item.inventoryName}`);
             }
 
             await prisma.recipes.create({
@@ -310,17 +351,18 @@ async function main() {
                     quantity_used: item.quantity,
                 },
             });
-            console.log(`  - Recipe added: ${product.name} → ${inventory.name} ${item.quantity}`);
-            await new Promise((resolve) => setTimeout(resolve, 100)); // Small delay
+
+            console.log(`  - Đã thêm công thức: ${product.name} -> ${inventory.name} ${item.quantity}`);
+            await sleep(100);
         }
     }
 
-    console.log('🎉 Seed completed successfully.');
+    console.log('Seed hoàn tất thành công.');
 }
 
 main()
     .catch((error) => {
-        console.error('Seed error:', error.message || error);
+        console.error('Lỗi seed:', error.message || error);
         process.exitCode = 1;
     })
     .finally(async () => {
