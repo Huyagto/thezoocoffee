@@ -14,20 +14,4 @@ router.get('/', asyncHandler(productController.getProducts));
 
 router.get('/category/:category', asyncHandler(productController.getProductsByCategory));
 
-router.post('/', authUser, requireAdmin, validateCreateProduct, asyncHandler(productController.createProduct));
-
-router.post(
-    '/with-recipes',
-    authUser,
-    requireAdmin,
-    validateCreateProductWithRecipes,
-    asyncHandler(productController.createProductWithRecipes),
-);
-
-router.put('/:id', authUser, requireAdmin, validateUpdateProduct, asyncHandler(productController.updateProduct));
-
-router.patch('/:id/status', authUser, requireAdmin, asyncHandler(productController.toggleProductStatus));
-
-router.delete('/:id', authUser, requireAdmin, asyncHandler(productController.deleteProduct));
-
 module.exports = router;

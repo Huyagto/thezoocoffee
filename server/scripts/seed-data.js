@@ -97,7 +97,7 @@ const inventoryItems = [
 const productItems = [
     {
         name: 'Espresso',
-        price: '45.00',
+        price: '45000.00',
         description: 'Cà phê Espresso đậm đà, nồng nàn.',
         sku: 'ESP001',
         status: 'available',
@@ -105,7 +105,7 @@ const productItems = [
     },
     {
         name: 'Cappuccino',
-        price: '68.00',
+        price: '68000.00',
         description: 'Sữa bọt mịn kết hợp cà phê Espresso.',
         sku: 'CAP001',
         status: 'available',
@@ -113,7 +113,7 @@ const productItems = [
     },
     {
         name: 'Mocha',
-        price: '75.00',
+        price: '75000.00',
         description: 'Espresso pha với cacao và sữa tươi.',
         sku: 'MOC001',
         status: 'available',
@@ -121,7 +121,7 @@ const productItems = [
     },
     {
         name: 'Matcha Latte',
-        price: '78.00',
+        price: '78000.00',
         description: 'Matcha Nhật Bản hòa quyện sữa tươi.',
         sku: 'MTL001',
         status: 'available',

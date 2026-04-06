@@ -8,11 +8,11 @@ import type {
 } from "@/types/api"
 
 const CART_ENDPOINTS = {
-  GET_CART: "/cart",
-  ADD_TO_CART: "/cart/items",
-  UPDATE_QUANTITY: (id: string) => `/cart/items/${id}`,
-  REMOVE_ITEM: (id: string) => `/cart/items/${id}`,
-  CLEAR_CART: "/cart/clear",
+  GET_CART: "/user/cart",
+  ADD_TO_CART: "/user/cart/items",
+  UPDATE_QUANTITY: (id: string) => `/user/cart/items/${id}`,
+  REMOVE_ITEM: (id: string) => `/user/cart/items/${id}`,
+  CLEAR_CART: "/user/cart/clear",
 }
 
 const getPayload = <T>(response: ApiResponse<T>): T => response.metadata ?? response.data!

@@ -1,6 +1,7 @@
 const prisma = require('../../config/prisma');
 const { BadRequestError, NotFoundError } = require('../../core/error.response');
 const { Created, OK } = require('../../core/success.response');
+const { normalizeVndAmount } = require('../../utils/money');
 
 const COUPON_SELECT = {
     id: true,
@@ -133,15 +134,23 @@ class CouponController {
             throw new BadRequestError('Giảm theo phần trăm không được vượt quá 100%');
         }
 
+        const normalizedDiscountValue =
+            discountType === 'fixed' ? normalizeVndAmount(discountValue) : Number(discountValue);
+        const normalizedMinOrderValue = normalizeVndAmount(minOrderValue || 0);
+        const normalizedMaxDiscountAmount =
+            maxDiscountAmount === undefined || maxDiscountAmount === null || maxDiscountAmount === ''
+                ? null
+                : normalizeVndAmount(maxDiscountAmount);
+
         const createdCoupon = await prisma.coupons.create({
             data: {
                 code: code.trim().toUpperCase(),
                 name: name.trim(),
                 description: description?.trim() || null,
                 discount_type: discountType,
-                discount_value: Number(discountValue),
-                min_order_value: Number(minOrderValue || 0),
-                max_discount_amount: maxDiscountAmount ? Number(maxDiscountAmount) : null,
+                discount_value: normalizedDiscountValue,
+                min_order_value: normalizedMinOrderValue ?? 0,
+                max_discount_amount: normalizedMaxDiscountAmount,
                 usage_limit: usageLimit ? Number(usageLimit) : null,
                 starts_at: startsAt ? new Date(startsAt) : null,
                 expires_at: expiresAt ? new Date(expiresAt) : null,
@@ -173,6 +182,21 @@ class CouponController {
         }
 
         const payload = req.body || {};
+        const normalizedDiscountValue =
+            payload.discountValue === undefined
+                ? undefined
+                : payload.discountType === 'percentage' || (payload.discountType === undefined && existingCoupon.discount_type === 'percentage')
+                  ? Number(payload.discountValue)
+                  : normalizeVndAmount(payload.discountValue);
+        const normalizedMinOrderValue =
+            payload.minOrderValue === undefined ? undefined : normalizeVndAmount(payload.minOrderValue);
+        const normalizedMaxDiscountAmount =
+            payload.maxDiscountAmount === undefined
+                ? undefined
+                : payload.maxDiscountAmount
+                  ? normalizeVndAmount(payload.maxDiscountAmount)
+                  : null;
+
         const updatedCoupon = await prisma.coupons.update({
             where: { id: couponId },
             data: {
@@ -181,14 +205,9 @@ class CouponController {
                 description:
                     payload.description === undefined ? undefined : String(payload.description || '').trim() || null,
                 discount_type: payload.discountType || undefined,
-                discount_value: payload.discountValue !== undefined ? Number(payload.discountValue) : undefined,
-                min_order_value: payload.minOrderValue !== undefined ? Number(payload.minOrderValue) : undefined,
-                max_discount_amount:
-                    payload.maxDiscountAmount === undefined
-                        ? undefined
-                        : payload.maxDiscountAmount
-                          ? Number(payload.maxDiscountAmount)
-                          : null,
+                discount_value: normalizedDiscountValue,
+                min_order_value: normalizedMinOrderValue,
+                max_discount_amount: normalizedMaxDiscountAmount,
                 usage_limit:
                     payload.usageLimit === undefined ? undefined : payload.usageLimit ? Number(payload.usageLimit) : null,
                 starts_at: payload.startsAt === undefined ? undefined : payload.startsAt ? new Date(payload.startsAt) : null,

@@ -1,6 +1,24 @@
 const prisma = require('../../config/prisma');
 const { ConflictRequestError, NotFoundError, BadRequestError } = require('../../core/error.response');
 const { Created, OK } = require('../../core/success.response');
+const { normalizeVndAmount } = require('../../utils/money');
+
+function normalizeProduct(product) {
+    if (!product) {
+        return product;
+    }
+
+    return {
+        ...product,
+        price: Number(product.price || 0),
+        recipes: product.recipes
+            ? product.recipes.map((recipe) => ({
+                  ...recipe,
+                  quantity_used: Number(recipe.quantity_used || 0),
+              }))
+            : product.recipes,
+    };
+}
 
 class ProductController {
     async getProducts(req, res) {
@@ -69,7 +87,7 @@ class ProductController {
         new OK({
             message: 'Lấy sản phẩm thành công',
             metadata: {
-                products,
+                products: products.map(normalizeProduct),
                 total,
                 page: pageNum,
                 limit: limitNum,
@@ -144,7 +162,7 @@ class ProductController {
         new OK({
             message: 'Lấy sản phẩm theo danh mục thành công',
             metadata: {
-                products,
+                products: products.map(normalizeProduct),
                 total,
                 page: pageNum,
                 limit: limitNum,
@@ -154,6 +172,11 @@ class ProductController {
 
     async createProduct(req, res) {
         const { name, categoryId, price, image, description, sku, status } = req.body;
+        const normalizedPrice = normalizeVndAmount(price);
+
+        if (normalizedPrice === null || normalizedPrice <= 0) {
+            throw new BadRequestError('Gia san pham khong hop le');
+        }
 
         const category = await prisma.categories.findUnique({
             where: { id: Number(categoryId) },
@@ -179,7 +202,7 @@ class ProductController {
             data: {
                 name: name.trim(),
                 category_id: Number(categoryId),
-                price: Number(price),
+                price: normalizedPrice,
                 image: image?.trim() || null,
                 description: description?.trim() || null,
                 sku: sku?.trim() || null,
@@ -206,12 +229,17 @@ class ProductController {
 
         new Created({
             message: 'Tạo sản phẩm thành công',
-            metadata: product,
+            metadata: normalizeProduct(product),
         }).send(res);
     }
 
     async createProductWithRecipes(req, res) {
         const { name, categoryId, price, image, description, sku, status, recipes } = req.body;
+        const normalizedPrice = normalizeVndAmount(price);
+
+        if (normalizedPrice === null || normalizedPrice <= 0) {
+            throw new BadRequestError('Gia san pham khong hop le');
+        }
 
         const category = await prisma.categories.findUnique({
             where: { id: Number(categoryId) },
@@ -256,7 +284,7 @@ class ProductController {
                 data: {
                     name: name.trim(),
                     category_id: Number(categoryId),
-                    price: Number(price),
+                    price: normalizedPrice,
                     image: image?.trim() || null,
                     description: description?.trim() || null,
                     sku: sku?.trim() || null,
@@ -309,7 +337,7 @@ class ProductController {
 
         new Created({
             message: 'Tạo sản phẩm theo công thức thành công',
-            metadata: createdProduct,
+            metadata: normalizeProduct(createdProduct),
         }).send(res);
     }
 
@@ -317,9 +345,14 @@ class ProductController {
         const { id } = req.params;
         const { name, categoryId, price, image, description, sku, status } = req.body;
         const productId = Number(id);
+        const normalizedPrice = price !== undefined ? normalizeVndAmount(price) : null;
 
         if (Number.isNaN(productId)) {
             throw new BadRequestError('ID sản phẩm không hợp lệ');
+        }
+
+        if (price !== undefined && (normalizedPrice === null || normalizedPrice <= 0)) {
+            throw new BadRequestError('Gia san pham khong hop le');
         }
 
         const existingProduct = await prisma.products.findUnique({
@@ -353,7 +386,7 @@ class ProductController {
             data: {
                 name: name ? name.trim() : existingProduct.name,
                 category_id: categoryId ? Number(categoryId) : existingProduct.category_id,
-                price: price !== undefined ? Number(price) : existingProduct.price,
+                price: price !== undefined ? normalizedPrice : existingProduct.price,
                 image: image !== undefined ? (image ? image.trim() : null) : existingProduct.image,
                 description: description !== undefined ? description.trim() || null : existingProduct.description,
                 sku: sku ? sku.trim() : existingProduct.sku,
@@ -381,7 +414,7 @@ class ProductController {
 
         new OK({
             message: 'Cập nhật sản phẩm thành công',
-            metadata: updatedProduct,
+            metadata: normalizeProduct(updatedProduct),
         }).send(res);
     }
 

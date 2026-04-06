@@ -10,7 +10,7 @@ const getPayload = <T>(response: ApiResponse<T>): T => response.metadata ?? resp
 export const paymentService = {
   async initiate(orderId: string | number, paymentMethod: Exclude<PaymentMethod, "cod">) {
     const response = await axiosInstance.post<ApiResponse<PaymentInitiationResponse>>(
-      `/payments/${orderId}/initiate`,
+      `/user/payments/${orderId}/initiate`,
       { paymentMethod }
     )
 

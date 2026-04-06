@@ -1,6 +1,20 @@
 const prisma = require('../../config/prisma');
 const { ConflictRequestError, NotFoundError, BadRequestError } = require('../../core/error.response');
 const { Created, OK } = require('../../core/success.response');
+const { normalizeVndAmount } = require('../../utils/money');
+
+function normalizeInventoryItem(item) {
+    if (!item) {
+        return item;
+    }
+
+    return {
+        ...item,
+        quantity: Number(item.quantity || 0),
+        min_quantity: Number(item.min_quantity || 0),
+        cost_price: Number(item.cost_price || 0),
+    };
+}
 
 class InventoryController {
     async getInventory(req, res) {
@@ -23,13 +37,14 @@ class InventoryController {
         });
 
         new OK({
-            message: 'Lấy kho nguyên liệu thành công',
-            metadata: inventoryItems,
+            message: 'Lay kho nguyen lieu thanh cong',
+            metadata: inventoryItems.map(normalizeInventoryItem),
         }).send(res);
     }
 
     async createInventory(req, res) {
         const { name, unit, quantity, minQuantity, costPrice, supplierName, status } = req.body;
+        const normalizedCostPrice = costPrice !== undefined ? normalizeVndAmount(costPrice) : 0;
 
         const normalizedName = name.trim();
         const normalizedUnit = unit.trim();
@@ -43,7 +58,7 @@ class InventoryController {
         });
 
         if (existingItem) {
-            throw new ConflictRequestError('Nguyên liệu này đã tồn tại');
+            throw new ConflictRequestError('Nguyen lieu nay da ton tai');
         }
 
         const inventoryItem = await prisma.inventory.create({
@@ -52,7 +67,7 @@ class InventoryController {
                 unit: normalizedUnit,
                 quantity: quantity !== undefined ? Number(quantity) : 0,
                 min_quantity: minQuantity !== undefined ? Number(minQuantity) : 0,
-                cost_price: costPrice !== undefined ? Number(costPrice) : 0,
+                cost_price: normalizedCostPrice ?? 0,
                 supplier_name: supplierName?.trim() || null,
                 status: status || 'available',
             },
@@ -71,8 +86,8 @@ class InventoryController {
         });
 
         new Created({
-            message: 'Tạo nguyên liệu thành công',
-            metadata: inventoryItem,
+            message: 'Tao nguyen lieu thanh cong',
+            metadata: normalizeInventoryItem(inventoryItem),
         }).send(res);
     }
 
@@ -80,9 +95,10 @@ class InventoryController {
         const { id } = req.params;
         const { name, unit, quantity, minQuantity, costPrice, supplierName, status } = req.body;
         const inventoryId = Number(id);
+        const normalizedCostPrice = costPrice !== undefined ? normalizeVndAmount(costPrice) : null;
 
         if (Number.isNaN(inventoryId)) {
-            throw new BadRequestError('ID nguyên liệu không hợp lệ');
+            throw new BadRequestError('ID nguyen lieu khong hop le');
         }
 
         const existingItem = await prisma.inventory.findUnique({
@@ -90,7 +106,7 @@ class InventoryController {
         });
 
         if (!existingItem) {
-            throw new NotFoundError('Nguyên liệu không tồn tại');
+            throw new NotFoundError('Nguyen lieu khong ton tai');
         }
 
         const normalizedName = name ? name.trim() : existingItem.name;
@@ -104,7 +120,7 @@ class InventoryController {
                 },
             });
             if (nameUnitConflict && nameUnitConflict.id !== inventoryId) {
-                throw new ConflictRequestError('Kết hợp tên + đơn vị đã tồn tại');
+                throw new ConflictRequestError('Ket hop ten va don vi da ton tai');
             }
         }
 
@@ -115,7 +131,7 @@ class InventoryController {
                 unit: normalizedUnit,
                 quantity: quantity !== undefined ? Number(quantity) : existingItem.quantity,
                 min_quantity: minQuantity !== undefined ? Number(minQuantity) : existingItem.min_quantity,
-                cost_price: costPrice !== undefined ? Number(costPrice) : existingItem.cost_price,
+                cost_price: costPrice !== undefined ? normalizedCostPrice : existingItem.cost_price,
                 supplier_name: supplierName !== undefined ? supplierName.trim() || null : existingItem.supplier_name,
                 status: status || existingItem.status,
                 updated_at: new Date(),
@@ -135,8 +151,8 @@ class InventoryController {
         });
 
         new OK({
-            message: 'Cập nhật nguyên liệu thành công',
-            metadata: updatedItem,
+            message: 'Cap nhat nguyen lieu thanh cong',
+            metadata: normalizeInventoryItem(updatedItem),
         }).send(res);
     }
 
@@ -145,7 +161,7 @@ class InventoryController {
         const inventoryId = Number(id);
 
         if (Number.isNaN(inventoryId)) {
-            throw new BadRequestError('ID nguyên liệu không hợp lệ');
+            throw new BadRequestError('ID nguyen lieu khong hop le');
         }
 
         const existingItem = await prisma.inventory.findUnique({
@@ -153,7 +169,7 @@ class InventoryController {
         });
 
         if (!existingItem) {
-            throw new NotFoundError('Nguyên liệu không tồn tại');
+            throw new NotFoundError('Nguyen lieu khong ton tai');
         }
 
         const newStatus = existingItem.status === 'available' ? 'out_of_stock' : 'available';
@@ -171,7 +187,7 @@ class InventoryController {
         });
 
         new OK({
-            message: 'Chuyển trạng thái nguyên liệu thành công',
+            message: 'Chuyen trang thai nguyen lieu thanh cong',
             metadata: updatedItem,
         }).send(res);
     }
@@ -181,7 +197,7 @@ class InventoryController {
         const inventoryId = Number(id);
 
         if (Number.isNaN(inventoryId)) {
-            throw new BadRequestError('ID nguyên liệu không hợp lệ');
+            throw new BadRequestError('ID nguyen lieu khong hop le');
         }
 
         const existingItem = await prisma.inventory.findUnique({
@@ -189,7 +205,7 @@ class InventoryController {
         });
 
         if (!existingItem) {
-            throw new NotFoundError('Nguyên liệu không tồn tại');
+            throw new NotFoundError('Nguyen lieu khong ton tai');
         }
 
         const usageCount = await prisma.recipes.count({
@@ -201,7 +217,7 @@ class InventoryController {
         });
 
         if (usageCount > 0 || transactionCount > 0) {
-            throw new BadRequestError('Không thể xóa nguyên liệu đang được sử dụng trong công thức hoặc giao dịch');
+            throw new BadRequestError('Khong the xoa nguyen lieu dang duoc su dung trong cong thuc hoac giao dich');
         }
 
         await prisma.inventory.delete({
@@ -209,7 +225,7 @@ class InventoryController {
         });
 
         new OK({
-            message: 'Xóa nguyên liệu thành công',
+            message: 'Xoa nguyen lieu thanh cong',
         }).send(res);
     }
 }

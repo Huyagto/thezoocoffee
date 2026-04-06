@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { ProductCard } from '@/components/product-card';
+import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/lib/utils';
 import { Coffee, Leaf, Cake, Package, CupSoda } from 'lucide-react';
 import { productService } from '@/services/product.service';
@@ -195,9 +196,7 @@ export default function MenuPage() {
                                 id={product.id}
                                 name={product.name}
                                 description={product.description || ''}
-                                price={`$${Number(product.price)
-                                    .toFixed(0)
-                                    .replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`}
+                                price={formatCurrency(product.price)}
                                 image={product.image || '/images/placeholder.jpg'}
                                 badge={product.status === 'available' ? undefined : product.status}
                                 priority={index < 4}

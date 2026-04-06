@@ -22,6 +22,13 @@ const PAYMENT_STATUS_OPTIONS = [
     { value: 'refunded', label: 'Hoàn trả' },
 ];
 
+function formatCurrency(amount: number | string | null | undefined) {
+    const numericAmount = Number(amount ?? 0);
+    const safeAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
+
+    return `${Math.round(safeAmount).toLocaleString('vi-VN')} vnđ`;
+}
+
 export default function OrdersPage() {
     const { user: currentUser } = useAuth();
     const [orders, setOrders] = useState<Order[]>([]);
@@ -157,12 +164,7 @@ export default function OrdersPage() {
                                         <div className="grid gap-2 text-sm text-[var(--muted)] lg:text-right">
                                             <span className="font-semibold text-[var(--foreground)]">
                                                 Tổng:{' '}
-                                                {typeof order.total_amount === 'number'
-                                                    ? new Intl.NumberFormat('vi-VN', {
-                                                          style: 'currency',
-                                                          currency: 'VND',
-                                                      }).format(Number(order.total_amount))
-                                                    : order.total_amount}
+                                                {formatCurrency(order.total_amount)}
                                             </span>
                                             <span>
                                                 Trạng thái:{' '}
@@ -237,17 +239,11 @@ export default function OrdersPage() {
                                                 <p>Số lượng: {item.quantity}</p>
                                                 <p>
                                                     Giá đơn vị:{' '}
-                                                    {new Intl.NumberFormat('vi-VN', {
-                                                        style: 'currency',
-                                                        currency: 'VND',
-                                                    }).format(Number(item.unit_price))}
+                                                    {formatCurrency(item.unit_price)}
                                                 </p>
                                                 <p>
                                                     Tổng:{' '}
-                                                    {new Intl.NumberFormat('vi-VN', {
-                                                        style: 'currency',
-                                                        currency: 'VND',
-                                                    }).format(Number(item.subtotal))}
+                                                    {formatCurrency(item.subtotal)}
                                                 </p>
                                             </div>
                                         ))}

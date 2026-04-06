@@ -14,11 +14,7 @@ import { Separator } from '@/components/ui/separator';
 const SHIPPING_FEE = 30000;
 
 function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
-        maximumFractionDigits: 0,
-    }).format(amount);
+    return `${Math.round(amount).toLocaleString('vi-VN')} vnđ`;
 }
 
 function parseAmount(value: number | string | undefined) {

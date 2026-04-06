@@ -16,8 +16,15 @@ function displayNumber(value: number | string | null | undefined) {
   return String(value)
 }
 
+function formatCurrency(value: number | string | null | undefined) {
+  const numericValue = Number(value ?? 0)
+  const safeValue = Number.isFinite(numericValue) ? numericValue : 0
+
+  return `${Math.round(safeValue).toLocaleString("vi-VN")} vnđ`
+}
+
 function getStatusLabel(status: InventoryStatus | undefined) {
-  return status === "out_of_stock" ? "Het hang" : "Con hang"
+  return status === "out_of_stock" ? "Hết hàng" : "Còn hàng"
 }
 
 export default function InventoryPage() {
@@ -55,7 +62,7 @@ export default function InventoryPage() {
         setInventoryItems(data)
       } catch (error) {
         setErrorMessage(
-          error instanceof Error ? error.message : "Khong the tai kho nguyen lieu."
+          error instanceof Error ? error.message : "Không thể tải kho nguyên liệu."
         )
       } finally {
         setIsLoading(false)
@@ -85,7 +92,7 @@ export default function InventoryPage() {
     setSuccessMessage("")
 
     if (!formData.name.trim() || !formData.unit.trim()) {
-      setErrorMessage("Vui long nhap ten nguyen lieu va don vi tinh.")
+      setErrorMessage("Vui lòng nhập tên nguyên liệu và đơn vị tính.")
       return
     }
 
@@ -114,10 +121,10 @@ export default function InventoryPage() {
         supplierName: "",
         status: "available",
       })
-      setSuccessMessage("Tao nguyen lieu thanh cong.")
+      setSuccessMessage("Tạo nguyên liệu thành công.")
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Khong the tao nguyen lieu."
+        error instanceof Error ? error.message : "Không thể tạo nguyên liệu."
       )
     } finally {
       setIsSubmitting(false)
@@ -163,11 +170,11 @@ export default function InventoryPage() {
       setInventoryItems((prev) =>
         prev.map((item) => (item.id === editingItem.id ? updated : item))
       )
-      setSuccessMessage("Cap nhat nguyen lieu thanh cong.")
+      setSuccessMessage("Cập nhật nguyên liệu thành công.")
       closeEditModal()
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Khong the cap nhat nguyen lieu."
+        error instanceof Error ? error.message : "Không thể cập nhật nguyên liệu."
       )
     } finally {
       setIsSubmitting(false)
@@ -175,7 +182,7 @@ export default function InventoryPage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Ban co chac chan muon xoa nguyen lieu nay?")) {
+    if (!confirm("Bạn có chắc chắn muốn xóa nguyên liệu này?")) {
       return
     }
 
@@ -186,12 +193,12 @@ export default function InventoryPage() {
     try {
       await catalogService.deleteInventory(id)
       setInventoryItems((prev) => prev.filter((item) => item.id !== id))
-      setSuccessMessage("Xoa nguyen lieu thanh cong.")
+      setSuccessMessage("Xóa nguyên liệu thành công.")
     } catch (error) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Khong the xoa nguyen lieu dang duoc su dung."
+          : "Không thể xóa nguyên liệu đang được sử dụng."
       )
     } finally {
       setIsSubmitting(false)
@@ -201,13 +208,13 @@ export default function InventoryPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
       <SectionCard
-        title="Tao Nguyen Lieu"
-        description="Quan ly kho nguyen lieu rieng de cong thuc co the tham chieu du lieu on dinh."
+        title="Tạo Nguyên Liệu"
+        description="Quản lý kho nguyên liệu riêng để công thức có thể tham chiếu dữ liệu ổn định."
       >
         <form onSubmit={handleSubmit} className="grid gap-4">
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-              Ten nguyen lieu
+              Tên nguyên liệu
             </span>
             <input
               type="text"
@@ -215,7 +222,7 @@ export default function InventoryPage() {
               onChange={(event) =>
                 setFormData((prev) => ({ ...prev, name: event.target.value }))
               }
-              placeholder="Hat espresso"
+              placeholder="Hạt espresso"
               className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
             />
           </label>
@@ -223,7 +230,7 @@ export default function InventoryPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                Don vi tinh
+                Đơn vị tính
               </span>
               <input
                 type="text"
@@ -238,7 +245,7 @@ export default function InventoryPage() {
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                Trang thai
+                Trạng thái
               </span>
               <select
                 value={formData.status}
@@ -250,8 +257,8 @@ export default function InventoryPage() {
                 }
                 className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
               >
-                <option value="available">Con hang</option>
-                <option value="out_of_stock">Het hang</option>
+                <option value="available">Còn hàng</option>
+                <option value="out_of_stock">Hết hàng</option>
               </select>
             </label>
           </div>
@@ -259,7 +266,7 @@ export default function InventoryPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                Ton kho
+                Tồn kho
               </span>
               <input
                 type="number"
@@ -275,7 +282,7 @@ export default function InventoryPage() {
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                Ton toi thieu
+                Tồn tối thiểu
               </span>
               <input
                 type="number"
@@ -294,7 +301,7 @@ export default function InventoryPage() {
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                Gia nhap
+                Giá nhập
               </span>
               <input
                 type="number"
@@ -314,7 +321,7 @@ export default function InventoryPage() {
 
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-              Nha cung cap
+              Nhà cung cấp
             </span>
             <input
               type="text"
@@ -325,7 +332,7 @@ export default function InventoryPage() {
                   supplierName: event.target.value,
                 }))
               }
-              placeholder="Nha cung cap ABC"
+              placeholder="Nhà cung cấp ABC"
               className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
             />
           </label>
@@ -347,18 +354,18 @@ export default function InventoryPage() {
             disabled={isSubmitting}
             className="w-full rounded-2xl bg-[var(--foreground)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {isSubmitting ? "Dang tao nguyen lieu..." : "Them Nguyen Lieu"}
+            {isSubmitting ? "Đang tạo nguyên liệu..." : "Thêm Nguyên Liệu"}
           </button>
         </form>
       </SectionCard>
 
       <SectionCard
-        title="Danh Sach Nguyen Lieu"
-        description="Kho nguyen lieu duoc quan ly rieng de cong thuc lay du lieu tu mot nguon ro rang."
+        title="Danh Sách Nguyên Liệu"
+        description="Kho nguyên liệu được quản lý riêng để công thức lấy dữ liệu từ một nguồn rõ ràng."
       >
         {isLoading ? (
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-6 text-sm text-[var(--muted)]">
-            Dang tai kho nguyen lieu...
+            Đang tải kho nguyên liệu...
           </div>
         ) : (
           <div className="grid gap-3">
@@ -381,30 +388,30 @@ export default function InventoryPage() {
                     <button
                       onClick={() => openEditModal(item)}
                       className="grid h-9 w-9 place-items-center rounded-xl text-[var(--muted)] transition hover:bg-[var(--panel-strong)] hover:text-[var(--foreground)]"
-                      title="Sua"
+                      title="Sửa"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleDelete(item.id)}
                       className="grid h-9 place-items-center rounded-xl px-3 text-sm font-medium text-[var(--danger)] transition hover:bg-red-50"
-                      title="Xoa"
+                      title="Xóa"
                     >
-                      Xoa
+                      Xóa
                     </button>
                   </div>
                 </div>
                 <div className="mt-3 grid gap-1 text-sm text-[var(--muted)]">
-                  <span>Ton toi thieu: {displayNumber(item.min_quantity ?? item.minQuantity)}</span>
-                  <span>Gia nhap: {displayNumber(item.cost_price ?? item.costPrice)}</span>
-                  <span>Nha cung cap: {item.supplier_name ?? item.supplierName ?? "Chua co"}</span>
+                  <span>Tồn tối thiểu: {displayNumber(item.min_quantity ?? item.minQuantity)}</span>
+                  <span>Giá nhập: {formatCurrency(item.cost_price ?? item.costPrice)}</span>
+                  <span>Nhà cung cấp: {item.supplier_name ?? item.supplierName ?? "Chưa có"}</span>
                 </div>
               </div>
             ))}
 
             {inventoryItems.length === 0 ? (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-6 text-center text-sm text-[var(--muted)]">
-                Chua co nguyen lieu nao.
+                Chưa có nguyên liệu nào.
               </div>
             ) : null}
           </div>
@@ -416,14 +423,14 @@ export default function InventoryPage() {
           <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-[var(--foreground)]">
-                Cap Nhat Nguyen Lieu
+                Cập Nhật Nguyên Liệu
               </h3>
               <button
                 type="button"
                 onClick={closeEditModal}
                 className="rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--panel-strong)] hover:text-[var(--foreground)]"
               >
-                Dong
+                Đóng
               </button>
             </div>
 
@@ -434,7 +441,7 @@ export default function InventoryPage() {
                 onChange={(event) =>
                   setEditFormData((prev) => ({ ...prev, name: event.target.value }))
                 }
-                placeholder="Ten nguyen lieu"
+                placeholder="Tên nguyên liệu"
               />
 
               <div className="grid grid-cols-2 gap-4">
@@ -444,7 +451,7 @@ export default function InventoryPage() {
                   onChange={(event) =>
                     setEditFormData((prev) => ({ ...prev, unit: event.target.value }))
                   }
-                  placeholder="Don vi"
+                  placeholder="Đơn vị"
                 />
                 <select
                   className="rounded-2xl border border-[var(--border)] p-3 text-sm"
@@ -456,14 +463,14 @@ export default function InventoryPage() {
                     }))
                   }
                 >
-                  <option value="available">Con hang</option>
-                  <option value="out_of_stock">Het hang</option>
+                  <option value="available">Còn hàng</option>
+                  <option value="out_of_stock">Hết hàng</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-3 gap-4">
                 <label className="text-xs text-[var(--muted)]">
-                  Ton
+                  Tồn
                   <input
                     type="number"
                     className="mt-1 w-full rounded-xl border border-[var(--border)] p-2"
@@ -477,7 +484,7 @@ export default function InventoryPage() {
                   />
                 </label>
                 <label className="text-xs text-[var(--muted)]">
-                  Ton toi thieu
+                  Tồn tối thiểu
                   <input
                     type="number"
                     className="mt-1 w-full rounded-xl border border-[var(--border)] p-2"
@@ -491,7 +498,7 @@ export default function InventoryPage() {
                   />
                 </label>
                 <label className="text-xs text-[var(--muted)]">
-                  Gia nhap
+                  Giá nhập
                   <input
                     type="number"
                     className="mt-1 w-full rounded-xl border border-[var(--border)] p-2"
@@ -515,7 +522,7 @@ export default function InventoryPage() {
                     supplierName: event.target.value,
                   }))
                 }
-                placeholder="Nha cung cap"
+                placeholder="Nhà cung cấp"
               />
 
               <div className="flex gap-3 pt-4">
@@ -524,14 +531,14 @@ export default function InventoryPage() {
                   disabled={isSubmitting}
                   className="flex-1 rounded-2xl bg-black py-3 text-sm font-semibold text-white"
                 >
-                  {isSubmitting ? "Dang luu..." : "Cap Nhat"}
+                  {isSubmitting ? "Đang lưu..." : "Cập Nhật"}
                 </button>
                 <button
                   type="button"
                   onClick={closeEditModal}
                   className="flex-1 rounded-2xl border border-[var(--border)] py-3 text-sm font-semibold"
                 >
-                  Huy
+                  Hủy
                 </button>
               </div>
             </form>

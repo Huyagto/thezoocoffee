@@ -9,11 +9,7 @@ import catalogService from '@/services/catalog.service';
 import type { Category, InventoryItem, Order, Product, User } from '@/types/api';
 
 function formatCurrency(amount: number) {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
-        maximumFractionDigits: 0,
-    }).format(amount);
+    return `${Math.round(amount).toLocaleString('vi-VN')} vnđ`;
 }
 
 function isSameDay(dateValue?: string) {

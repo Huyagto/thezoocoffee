@@ -30,7 +30,7 @@ class RecipeController {
         });
 
         new OK({
-            message: 'Lấy công thức thành công',
+            message: 'Lay cong thuc thanh cong',
             metadata: recipes,
         }).send(res);
     }
@@ -45,7 +45,7 @@ class RecipeController {
         });
 
         if (!product) {
-            throw new NotFoundError('Sản phẩm không tồn tại');
+            throw new NotFoundError('San pham khong ton tai');
         }
 
         const inventoryIds = recipes.map((recipe) => Number(recipe.inventoryId));
@@ -59,7 +59,7 @@ class RecipeController {
         });
 
         if (inventoryItems.length !== inventoryIds.length) {
-            throw new NotFoundError('Có nguyên liệu không tồn tại trong kho');
+            throw new NotFoundError('Co nguyen lieu khong ton tai trong kho');
         }
 
         await prisma.$transaction(async (tx) => {
@@ -101,7 +101,7 @@ class RecipeController {
         });
 
         new Created({
-            message: 'Lưu công thức thành công',
+            message: 'Luu cong thuc thanh cong',
             metadata: createdRecipes,
         }).send(res);
     }
@@ -113,11 +113,11 @@ class RecipeController {
         const quantityUsed = Number(quantity_used);
 
         if (Number.isNaN(recipeId)) {
-            throw new BadRequestError('ID công thức không hợp lệ');
+            throw new BadRequestError('ID cong thuc khong hop le');
         }
 
         if (Number.isNaN(quantityUsed) || quantityUsed <= 0) {
-            throw new BadRequestError('Số lượng sử dụng không hợp lệ');
+            throw new BadRequestError('So luong su dung khong hop le');
         }
 
         const recipe = await prisma.recipes.findUnique({
@@ -125,7 +125,7 @@ class RecipeController {
         });
 
         if (!recipe) {
-            throw new NotFoundError('Công thức không tồn tại');
+            throw new NotFoundError('Cong thuc khong ton tai');
         }
 
         const updatedRecipe = await prisma.recipes.update({
@@ -152,7 +152,7 @@ class RecipeController {
         });
 
         new OK({
-            message: 'Cập nhật công thức thành công',
+            message: 'Cap nhat cong thuc thanh cong',
             metadata: updatedRecipe,
         }).send(res);
     }
@@ -162,7 +162,7 @@ class RecipeController {
         const recipeId = Number(id);
 
         if (Number.isNaN(recipeId)) {
-            throw new BadRequestError('ID công thức không hợp lệ');
+            throw new BadRequestError('ID cong thuc khong hop le');
         }
 
         const existingRecipe = await prisma.recipes.findUnique({
@@ -170,7 +170,7 @@ class RecipeController {
         });
 
         if (!existingRecipe) {
-            throw new NotFoundError('Công thức không tồn tại');
+            throw new NotFoundError('Cong thuc khong ton tai');
         }
 
         await prisma.recipes.delete({
@@ -178,7 +178,7 @@ class RecipeController {
         });
 
         new OK({
-            message: 'Xóa công thức thành công',
+            message: 'Xoa cong thuc thanh cong',
         }).send(res);
     }
 }

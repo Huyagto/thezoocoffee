@@ -17,7 +17,7 @@ const uploadService = {
     formData.append("image", file)
 
     const response = await axiosInstance.post<ApiResponse<UploadImageResponse>>(
-      "/uploads/image",
+      "/admin/uploads/image",
       formData,
       {
         headers: {

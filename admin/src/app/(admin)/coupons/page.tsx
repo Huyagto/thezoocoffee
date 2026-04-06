@@ -7,11 +7,7 @@ import catalogService from '@/services/catalog.service';
 import type { Coupon } from '@/types/api';
 
 function formatCurrency(amount: number) {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
-        maximumFractionDigits: 0,
-    }).format(amount);
+    return `${Math.round(amount).toLocaleString('vi-VN')} vnđ`;
 }
 
 function formatDateTime(value?: string | null) {

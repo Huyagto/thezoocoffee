@@ -6,7 +6,7 @@ const requireAdmin = async (req, res, next) => {
         const userId = req.user?.id;
 
         if (!userId) {
-            throw new AuthFailureError('Vui lòng đăng nhập');
+            throw new AuthFailureError('Vui long dang nhap');
         }
 
         const currentUser = await prisma.users.findUnique({
@@ -15,11 +15,11 @@ const requireAdmin = async (req, res, next) => {
         });
 
         if (!currentUser) {
-            throw new AuthFailureError('Người dùng không tồn tại');
+            throw new AuthFailureError('Nguoi dung khong ton tai');
         }
 
         if (currentUser.role !== 'admin') {
-            throw new ForbiddenError('Bạn không có quyền truy cập chức năng này');
+            throw new ForbiddenError('Ban khong co quyen truy cap chuc nang nay');
         }
 
         next();

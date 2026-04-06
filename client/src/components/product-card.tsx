@@ -29,8 +29,8 @@ export function ProductCard({ id, name, description, price, image, badge, priori
     const handleAddToCart = async () => {
         if (!user) {
             toast({
-                title: 'Dang nhap yeu cau',
-                description: 'Vui long dang nhap de them san pham vao gio hang.',
+                title: 'Đăng nhập yêu cầu',
+                description: 'Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.',
                 variant: 'destructive',
             });
             router.push('/login');
@@ -48,15 +48,15 @@ export function ProductCard({ id, name, description, price, image, badge, priori
 
             setIsAdded(true);
             toast({
-                title: 'Da them vao gio hang',
-                description: `${name} da duoc them vao gio hang cua ban.`,
+                title: 'Đã thêm vào giỏ hàng',
+                description: `${name} đã được thêm vào giỏ hàng của bạn.`,
             });
 
             setTimeout(() => setIsAdded(false), 1500);
         } catch (error) {
             toast({
-                title: 'Khong the them vao gio',
-                description: error instanceof Error ? error.message : 'Vui long thu lai.',
+                title: 'Không thể thêm vào giỏ',
+                description: error instanceof Error ? error.message : 'Vui lòng thử lại.',
                 variant: 'destructive',
             });
         }
@@ -97,12 +97,12 @@ export function ProductCard({ id, name, description, price, image, badge, priori
                         {isAdded ? (
                             <>
                                 <Check className="h-4 w-4" />
-                                Added
+                                Đã thêm
                             </>
                         ) : (
                             <>
                                 <Plus className="h-4 w-4" />
-                                Add
+                                Thêm
                             </>
                         )}
                     </Button>

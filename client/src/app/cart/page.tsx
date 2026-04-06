@@ -15,11 +15,7 @@ import { useAuth } from '@/context/auth-context';
 const SHIPPING_FEE = 30000;
 
 function formatCurrency(amount: number) {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
-        maximumFractionDigits: 0,
-    }).format(amount);
+    return `${Math.round(amount).toLocaleString('vi-VN')} vnđ`;
 }
 
 export default function CartPage() {

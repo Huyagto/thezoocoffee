@@ -30,22 +30,19 @@ const EMPTY_FORM: ProductFormData = {
 };
 
 function formatCurrency(amount: number) {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
-    }).format(amount);
+    return `${Math.round(amount).toLocaleString('vi-VN')} vnđ`;
 }
 
 function getStatusLabel(status: ProductStatus) {
     if (status === 'out_of_stock') {
-        return 'Het hang';
+        return 'Hết hàng';
     }
 
     if (status === 'discontinued') {
-        return 'Ngung ban';
+        return 'Ngừng bán';
     }
 
-    return 'Dang ban';
+    return 'Đang bán';
 }
 
 export default function ProductsPage() {
@@ -75,7 +72,7 @@ export default function ProductsPage() {
                 setCategories(categoriesResponse);
                 setProducts(productsResponse);
             } catch (error) {
-                setErrorMessage(error instanceof Error ? error.message : 'Khong the tai danh sach san pham.');
+                setErrorMessage(error instanceof Error ? error.message : 'Không thể tải danh sách sản phẩm.');
             } finally {
                 setIsLoading(false);
             }
@@ -100,7 +97,7 @@ export default function ProductsPage() {
 
     const handleImageUpload = async () => {
         if (!selectedImageFile) {
-            setErrorMessage('Vui long chon anh truoc khi tai len.');
+            setErrorMessage('Vui lòng chọn ảnh trước khi tải lên.');
             return;
         }
 
@@ -118,9 +115,9 @@ export default function ProductsPage() {
                 setFormData((prev) => ({ ...prev, image: uploadedImage.url }));
             }
 
-            setSuccessMessage('Tai anh len thanh cong.');
+            setSuccessMessage('Tải ảnh lên thành công.');
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : 'Khong the tai anh len.');
+            setErrorMessage(error instanceof Error ? error.message : 'Không thể tải ảnh lên.');
         } finally {
             setIsUploadingImage(false);
         }
@@ -132,17 +129,17 @@ export default function ProductsPage() {
         setSuccessMessage('');
 
         if (!formData.name.trim()) {
-            setErrorMessage('Vui long nhap ten san pham.');
+            setErrorMessage('Vui lòng nhập tên sản phẩm.');
             return;
         }
 
         if (!formData.categoryId) {
-            setErrorMessage('Vui long chon danh muc.');
+            setErrorMessage('Vui lòng chọn danh mục.');
             return;
         }
 
         if (!formData.price || Number(formData.price) <= 0) {
-            setErrorMessage('Vui long nhap gia hop le.');
+            setErrorMessage('Vui lòng nhập giá hợp lệ.');
             return;
         }
 
@@ -161,9 +158,9 @@ export default function ProductsPage() {
 
             setProducts((prev) => [createdProduct, ...prev]);
             resetCreateForm();
-            setSuccessMessage('Tao san pham thanh cong.');
+            setSuccessMessage('Tạo sản phẩm thành công.');
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : 'Khong the tao san pham.');
+            setErrorMessage(error instanceof Error ? error.message : 'Không thể tạo sản phẩm.');
         } finally {
             setIsSubmitting(false);
         }
@@ -204,17 +201,17 @@ export default function ProductsPage() {
         }
 
         if (!editFormData.name.trim()) {
-            setErrorMessage('Vui long nhap ten san pham.');
+            setErrorMessage('Vui lòng nhập tên sản phẩm.');
             return;
         }
 
         if (!editFormData.categoryId) {
-            setErrorMessage('Vui long chon danh muc.');
+            setErrorMessage('Vui lòng chọn danh mục.');
             return;
         }
 
         if (!editFormData.price || Number(editFormData.price) <= 0) {
-            setErrorMessage('Vui long nhap gia hop le.');
+            setErrorMessage('Vui lòng nhập giá hợp lệ.');
             return;
         }
 
@@ -232,17 +229,17 @@ export default function ProductsPage() {
             });
 
             setProducts((prev) => prev.map((item) => (item.id === updatedProduct.id ? updatedProduct : item)));
-            setSuccessMessage('Cap nhat san pham thanh cong.');
+            setSuccessMessage('Cập nhật sản phẩm thành công.');
             closeEditModal();
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : 'Khong the cap nhat san pham.');
+            setErrorMessage(error instanceof Error ? error.message : 'Không thể cập nhật sản phẩm.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
     const handleDelete = async (product: Product) => {
-        if (!confirm(`Ban co chac muon xoa san pham "${product.name}"?`)) {
+        if (!confirm(`Bạn có chắc muốn xóa sản phẩm "${product.name}"?`)) {
             return;
         }
 
@@ -253,9 +250,9 @@ export default function ProductsPage() {
         try {
             await catalogService.deleteProduct(product.id);
             setProducts((prev) => prev.filter((item) => item.id !== product.id));
-            setSuccessMessage('Xoa san pham thanh cong.');
+            setSuccessMessage('Xóa sản phẩm thành công.');
         } catch (error) {
-            setErrorMessage(error instanceof Error ? error.message : 'Khong the xoa san pham.');
+            setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa sản phẩm.');
         } finally {
             setIsDeleting(false);
         }
@@ -264,12 +261,12 @@ export default function ProductsPage() {
     return (
         <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
             <SectionCard
-                title="Tao San Pham"
-                description="San pham duoc tao rieng tai day va lien ket voi danh muc da co."
+                title="Tạo Sản Phẩm"
+                description="Sản phẩm được tạo riêng tại đây và liên kết với danh mục đã có."
             >
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <label className="block">
-                        <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Ten san pham</span>
+                        <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Tên sản phẩm</span>
                         <input
                             type="text"
                             value={formData.name}
@@ -280,7 +277,7 @@ export default function ProductsPage() {
 
                     <div className="grid gap-4 md:grid-cols-2">
                         <label className="block">
-                            <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Danh muc</span>
+                            <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Danh mục</span>
                             <select
                                 value={formData.categoryId}
                                 onChange={(event) =>
@@ -291,7 +288,7 @@ export default function ProductsPage() {
                                 }
                                 className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
                             >
-                                <option value="">Chon danh muc</option>
+                                <option value="">Chọn danh mục</option>
                                 {categories.map((category) => (
                                     <option key={category.id} value={category.id}>
                                         {category.name}
@@ -301,7 +298,7 @@ export default function ProductsPage() {
                         </label>
 
                         <label className="block">
-                            <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Gia ban</span>
+                            <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Giá bán</span>
                             <input
                                 type="number"
                                 min="0"
@@ -312,7 +309,7 @@ export default function ProductsPage() {
                         </label>
 
                         <label className="block">
-                            <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Ma SKU</span>
+                            <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Mã SKU</span>
                             <input
                                 type="text"
                                 value={formData.sku}
@@ -322,7 +319,7 @@ export default function ProductsPage() {
                         </label>
 
                         <label className="block">
-                            <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Trang thai</span>
+                            <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Trạng thái</span>
                             <select
                                 value={formData.status}
                                 onChange={(event) =>
@@ -333,15 +330,15 @@ export default function ProductsPage() {
                                 }
                                 className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
                             >
-                                <option value="available">Dang ban</option>
-                                <option value="out_of_stock">Het hang</option>
-                                <option value="discontinued">Ngung ban</option>
+                                <option value="available">Đang bán</option>
+                                <option value="out_of_stock">Hết hàng</option>
+                                <option value="discontinued">Ngừng bán</option>
                             </select>
                         </label>
                     </div>
 
                     <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel-strong)] p-4">
-                        <p className="text-sm font-semibold text-[var(--foreground)]">Anh san pham</p>
+                        <p className="text-sm font-semibold text-[var(--foreground)]">Ảnh sản phẩm</p>
                         <div className="mt-3 flex flex-col gap-3">
                             <input
                                 type="file"
@@ -355,7 +352,7 @@ export default function ProductsPage() {
                                 disabled={!selectedImageFile || isUploadingImage}
                                 className="w-fit rounded-2xl border border-[var(--foreground)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                {isUploadingImage ? 'Dang tai anh...' : 'Tai anh len'}
+                                {isUploadingImage ? 'Đang tải ảnh...' : 'Tải ảnh lên'}
                             </button>
                         </div>
 
@@ -364,7 +361,7 @@ export default function ProductsPage() {
                                 <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-[var(--panel-strong)]">
                                     <Image
                                         src={uploadedImageUrl}
-                                        alt="Anh san pham"
+                                        alt="Ảnh sản phẩm"
                                         fill
                                         className="object-cover"
                                         unoptimized
@@ -375,7 +372,7 @@ export default function ProductsPage() {
                     </div>
 
                     <label className="block">
-                        <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Mo ta</span>
+                        <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Mô tả</span>
                         <textarea
                             value={formData.description}
                             onChange={(event) =>
@@ -406,18 +403,18 @@ export default function ProductsPage() {
                         disabled={isSubmitting || categories.length === 0}
                         className="w-full rounded-2xl bg-[var(--foreground)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                        {isSubmitting ? 'Dang tao san pham...' : 'Them San Pham'}
+                        {isSubmitting ? 'Đang tạo sản phẩm...' : 'Thêm Sản Phẩm'}
                     </button>
                 </form>
             </SectionCard>
 
             <SectionCard
-                title="Danh Sach San Pham"
-                description="Danh sach san pham duoc tach rieng de quan tri, chinh sua va gan cong thuc sau."
+                title="Danh Sách Sản Phẩm"
+                description="Danh sách sản phẩm được tách riêng để quản trị, chỉnh sửa và gắn công thức sau."
             >
                 {isLoading ? (
                     <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-6 text-sm text-[var(--muted)]">
-                        Dang tai san pham...
+                        Đang tải sản phẩm...
                     </div>
                 ) : (
                     <div className="grid gap-3">
@@ -427,9 +424,9 @@ export default function ProductsPage() {
                                     <div className="flex-1">
                                         <p className="font-medium text-[var(--foreground)]">{product.name}</p>
                                         <p className="mt-1 text-sm text-[var(--muted)]">
-                                            {product.categories?.name || 'Chua phan loai'} - {formatCurrency(product.price)}
+                                            {product.categories?.name || 'Chưa phân loại'} - {formatCurrency(product.price)}
                                         </p>
-                                        <p className="mt-1 text-sm text-[var(--muted)]">{product.sku || 'Chua co SKU'}</p>
+                                        <p className="mt-1 text-sm text-[var(--muted)]">{product.sku || 'Chưa có SKU'}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="rounded-full bg-[var(--panel-strong)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--foreground)]">
@@ -438,17 +435,17 @@ export default function ProductsPage() {
                                         <button
                                             onClick={() => openEditModal(product)}
                                             className="rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--panel-strong)] hover:text-[var(--foreground)]"
-                                            title="Sua"
+                                            title="Sửa"
                                         >
-                                            Sua
+                                            Sửa
                                         </button>
                                         <button
                                             onClick={() => handleDelete(product)}
                                             disabled={isDeleting}
                                             className="rounded-xl px-3 py-2 text-sm text-[var(--danger)] transition hover:bg-[rgba(157,49,49,.08)] disabled:cursor-not-allowed disabled:opacity-50"
-                                            title="Xoa"
+                                            title="Xóa"
                                         >
-                                            Xoa
+                                            Xóa
                                         </button>
                                     </div>
                                 </div>
@@ -457,7 +454,7 @@ export default function ProductsPage() {
 
                         {products.length === 0 ? (
                             <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-6 text-center text-sm text-[var(--muted)]">
-                                Chua co san pham nao.
+                                Chưa có sản phẩm nào.
                             </div>
                         ) : null}
                     </div>
@@ -468,19 +465,19 @@ export default function ProductsPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
                     <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-[var(--foreground)]">Sua san pham</h3>
+                            <h3 className="text-lg font-semibold text-[var(--foreground)]">Sửa sản phẩm</h3>
                             <button
                                 onClick={closeEditModal}
                                 className="rounded-xl px-3 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--panel-strong)] hover:text-[var(--foreground)]"
                             >
-                                Dong
+                                Đóng
                             </button>
                         </div>
 
                         <form onSubmit={handleEditSubmit} className="mt-6 space-y-4">
                             <label className="block">
                                 <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                                    Ten san pham
+                                    Tên sản phẩm
                                 </span>
                                 <input
                                     type="text"
@@ -493,14 +490,14 @@ export default function ProductsPage() {
                             <div className="grid gap-4 md:grid-cols-2">
                                 <label className="block">
                                     <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                                        Danh muc
+                                        Danh mục
                                     </span>
                                     <select
                                         value={editFormData.categoryId}
                                         onChange={(event) => handleEditChange('categoryId', event.target.value)}
                                         className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none"
                                     >
-                                        <option value="">Chon danh muc</option>
+                                        <option value="">Chọn danh mục</option>
                                         {categories.map((category) => (
                                             <option key={category.id} value={category.id}>
                                                 {category.name}
@@ -511,7 +508,7 @@ export default function ProductsPage() {
 
                                 <label className="block">
                                     <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                                        Gia ban
+                                        Giá bán
                                     </span>
                                     <input
                                         type="number"
@@ -526,7 +523,7 @@ export default function ProductsPage() {
                             <div className="grid gap-4 md:grid-cols-2">
                                 <label className="block">
                                     <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                                        Ma SKU
+                                        Mã SKU
                                     </span>
                                     <input
                                         type="text"
@@ -538,7 +535,7 @@ export default function ProductsPage() {
 
                                 <label className="block">
                                     <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                                        Trang thai
+                                        Trạng thái
                                     </span>
                                     <select
                                         value={editFormData.status}
@@ -547,15 +544,15 @@ export default function ProductsPage() {
                                         }
                                         className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none"
                                     >
-                                        <option value="available">Dang ban</option>
-                                        <option value="out_of_stock">Het hang</option>
-                                        <option value="discontinued">Ngung ban</option>
+                                        <option value="available">Đang bán</option>
+                                        <option value="out_of_stock">Hết hàng</option>
+                                        <option value="discontinued">Ngừng bán</option>
                                     </select>
                                 </label>
                             </div>
 
                             <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel-strong)] p-4">
-                                <p className="text-sm font-semibold text-[var(--foreground)]">Anh san pham</p>
+                                <p className="text-sm font-semibold text-[var(--foreground)]">Ảnh sản phẩm</p>
                                 <div className="mt-3 flex flex-col gap-3">
                                     <input
                                         type="file"
@@ -569,7 +566,7 @@ export default function ProductsPage() {
                                         disabled={!selectedImageFile || isUploadingImage}
                                         className="w-fit rounded-2xl border border-[var(--foreground)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                                     >
-                                        {isUploadingImage ? 'Dang tai anh...' : 'Tai anh moi'}
+                                        {isUploadingImage ? 'Đang tải ảnh...' : 'Tải ảnh mới'}
                                     </button>
                                 </div>
 
@@ -578,7 +575,7 @@ export default function ProductsPage() {
                                         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-[var(--panel-strong)]">
                                             <Image
                                                 src={uploadedImageUrl}
-                                                alt="Anh san pham"
+                                                alt="Ảnh sản phẩm"
                                                 fill
                                                 className="object-cover"
                                                 unoptimized
@@ -589,7 +586,7 @@ export default function ProductsPage() {
                             </div>
 
                             <label className="block">
-                                <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Mo ta</span>
+                                <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">Mô tả</span>
                                 <textarea
                                     value={editFormData.description}
                                     onChange={(event) => handleEditChange('description', event.target.value)}
@@ -610,14 +607,14 @@ export default function ProductsPage() {
                                     disabled={isSubmitting}
                                     className="flex-1 rounded-2xl bg-[var(--foreground)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-92 disabled:cursor-not-allowed"
                                 >
-                                    {isSubmitting ? 'Dang luu...' : 'Cap nhat'}
+                                    {isSubmitting ? 'Đang lưu...' : 'Cập nhật'}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={closeEditModal}
                                     className="flex-1 rounded-2xl border border-[var(--border)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--panel-strong)]"
                                 >
-                                    Huy
+                                    Hủy
                                 </button>
                             </div>
                         </form>

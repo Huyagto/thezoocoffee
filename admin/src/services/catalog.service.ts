@@ -10,13 +10,13 @@ const normalizeOrder = (order: Order & { users?: Order['user'] }): Order => ({
 
 const catalogService = {
     async getCategories(): Promise<Category[]> {
-        const response = await axiosInstance.get<ApiResponse<Category[]>>('/categories');
+        const response = await axiosInstance.get<ApiResponse<Category[]>>('/admin/categories');
 
         return getPayload(response.data);
     },
 
     async getCoupons(): Promise<Coupon[]> {
-        const response = await axiosInstance.get<ApiResponse<Coupon[]>>('/coupons');
+        const response = await axiosInstance.get<ApiResponse<Coupon[]>>('/admin/coupons');
         return getPayload(response.data);
     },
 
@@ -33,7 +33,7 @@ const catalogService = {
         expiresAt?: string;
         status?: 'active' | 'inactive';
     }): Promise<Coupon> {
-        const response = await axiosInstance.post<ApiResponse<Coupon>>('/coupons', data);
+        const response = await axiosInstance.post<ApiResponse<Coupon>>('/admin/coupons', data);
         return getPayload(response.data);
     },
 
@@ -46,21 +46,21 @@ const catalogService = {
         startsAt?: string;
         expiresAt?: string;
     }): Promise<Coupon> {
-        const response = await axiosInstance.put<ApiResponse<Coupon>>(`/coupons/${id}`, data);
+        const response = await axiosInstance.put<ApiResponse<Coupon>>(`/admin/coupons/${id}`, data);
         return getPayload(response.data);
     },
 
     async toggleCouponStatus(id: number): Promise<Coupon> {
-        const response = await axiosInstance.patch<ApiResponse<Coupon>>(`/coupons/${id}/status`);
+        const response = await axiosInstance.patch<ApiResponse<Coupon>>(`/admin/coupons/${id}/status`);
         return getPayload(response.data);
     },
 
     async deleteCoupon(id: number): Promise<void> {
-        await axiosInstance.delete(`/coupons/${id}`);
+        await axiosInstance.delete(`/admin/coupons/${id}`);
     },
 
     async createCategory(data: { name: string; status?: 'active' | 'inactive' }): Promise<Category> {
-        const response = await axiosInstance.post<ApiResponse<Category>>('/categories', data);
+        const response = await axiosInstance.post<ApiResponse<Category>>('/admin/categories', data);
 
         return getPayload(response.data);
     },
@@ -73,7 +73,7 @@ const catalogService = {
                 page: number;
                 limit: number;
             }>
-        >('/products');
+        >('/admin/products');
 
         const payload = getPayload(response.data);
 
@@ -81,7 +81,7 @@ const catalogService = {
     },
 
     async getInventory(): Promise<InventoryItem[]> {
-        const response = await axiosInstance.get<ApiResponse<InventoryItem[]>>('/inventory');
+        const response = await axiosInstance.get<ApiResponse<InventoryItem[]>>('/admin/inventory');
 
         return getPayload(response.data);
     },
@@ -95,7 +95,7 @@ const catalogService = {
         supplierName?: string;
         status?: 'available' | 'out_of_stock';
     }): Promise<InventoryItem> {
-        const response = await axiosInstance.post<ApiResponse<InventoryItem>>('/inventory', data);
+        const response = await axiosInstance.post<ApiResponse<InventoryItem>>('/admin/inventory', data);
 
         return getPayload(response.data);
     },
@@ -109,13 +109,13 @@ const catalogService = {
         sku?: string;
         status?: 'available' | 'out_of_stock' | 'discontinued';
     }): Promise<Product> {
-        const response = await axiosInstance.post<ApiResponse<Product>>('/products', data);
+        const response = await axiosInstance.post<ApiResponse<Product>>('/admin/products', data);
 
         return getPayload(response.data);
     },
 
     async getRecipes(): Promise<Recipe[]> {
-        const response = await axiosInstance.get<ApiResponse<Recipe[]>>('/recipes');
+        const response = await axiosInstance.get<ApiResponse<Recipe[]>>('/admin/recipes');
 
         return getPayload(response.data);
     },
@@ -127,56 +127,56 @@ const catalogService = {
             quantityUsed: number;
         }>;
     }): Promise<Product> {
-        const response = await axiosInstance.post<ApiResponse<Product>>('/recipes', data);
+        const response = await axiosInstance.post<ApiResponse<Product>>('/admin/recipes', data);
 
         return getPayload(response.data);
     },
 
     async getUsers(): Promise<User[]> {
-        const response = await axiosInstance.get<ApiResponse<User[]>>('/user/users');
+        const response = await axiosInstance.get<ApiResponse<User[]>>('/admin/users');
 
         return getPayload(response.data);
     },
 
     async updateUserRole(id: number, role: 'customer' | 'admin'): Promise<User> {
-        const response = await axiosInstance.patch<ApiResponse<User>>(`/user/${id}`, { role });
+        const response = await axiosInstance.patch<ApiResponse<User>>(`/admin/users/${id}`, { role });
         return getPayload(response.data);
     },
 
     async deleteUser(id: number): Promise<void> {
-        await axiosInstance.delete(`/user/${id}`);
+        await axiosInstance.delete(`/admin/users/${id}`);
     },
 
     async getOrders(): Promise<Order[]> {
-        const response = await axiosInstance.get<ApiResponse<Order[]>>('/orders');
+        const response = await axiosInstance.get<ApiResponse<Order[]>>('/admin/orders');
         return getPayload(response.data).map((order) => normalizeOrder(order as Order & { users?: Order['user'] }));
     },
 
     async updateOrderStatus(id: number, status: Order['order_status']): Promise<Order> {
-        const response = await axiosInstance.patch<ApiResponse<Order>>(`/orders/${id}/status`, {
+            const response = await axiosInstance.patch<ApiResponse<Order>>(`/admin/orders/${id}/status`, {
             status,
         });
         return normalizeOrder(getPayload(response.data) as Order & { users?: Order['user'] });
     },
 
     async updateOrderPaymentStatus(id: number, paymentStatus: Order['payment_status']): Promise<Order> {
-        const response = await axiosInstance.patch<ApiResponse<Order>>(`/orders/${id}/payment`, {
+        const response = await axiosInstance.patch<ApiResponse<Order>>(`/admin/orders/${id}/payment`, {
             paymentStatus,
         });
         return normalizeOrder(getPayload(response.data) as Order & { users?: Order['user'] });
     },
 
     async deleteOrder(id: number): Promise<void> {
-        await axiosInstance.delete(`/orders/${id}`);
+        await axiosInstance.delete(`/admin/orders/${id}`);
     },
 
     async updateCategory(id: number, data: Partial<Category>): Promise<Category> {
-        const response = await axiosInstance.put<ApiResponse<Category>>(`/categories/${id}`, data);
+        const response = await axiosInstance.put<ApiResponse<Category>>(`/admin/categories/${id}`, data);
         return getPayload(response.data);
     },
 
     async deleteCategory(id: number): Promise<void> {
-        await axiosInstance.delete(`/categories/${id}`);
+        await axiosInstance.delete(`/admin/categories/${id}`);
     },
 
     async updateProduct(id: number, data: {
@@ -188,40 +188,40 @@ const catalogService = {
         sku?: string | null;
         status?: 'available' | 'out_of_stock' | 'discontinued';
     }): Promise<Product> {
-        const response = await axiosInstance.put<ApiResponse<Product>>(`/products/${id}`, data);
+        const response = await axiosInstance.put<ApiResponse<Product>>(`/admin/products/${id}`, data);
         return getPayload(response.data);
     },
 
     async toggleProductStatus(id: number): Promise<Product> {
-        const response = await axiosInstance.patch<ApiResponse<Product>>(`/products/${id}/status`);
+        const response = await axiosInstance.patch<ApiResponse<Product>>(`/admin/products/${id}/status`);
         return getPayload(response.data);
     },
 
     async deleteProduct(id: number): Promise<void> {
-        await axiosInstance.delete(`/products/${id}`);
+        await axiosInstance.delete(`/admin/products/${id}`);
     },
 
     async updateInventory(id: number, data: Partial<InventoryItem>): Promise<InventoryItem> {
-        const response = await axiosInstance.put<ApiResponse<InventoryItem>>(`/inventory/${id}`, data);
+        const response = await axiosInstance.put<ApiResponse<InventoryItem>>(`/admin/inventory/${id}`, data);
         return getPayload(response.data);
     },
 
     async toggleInventoryStatus(id: number): Promise<InventoryItem> {
-        const response = await axiosInstance.patch<ApiResponse<InventoryItem>>(`/inventory/${id}/status`);
+        const response = await axiosInstance.patch<ApiResponse<InventoryItem>>(`/admin/inventory/${id}/status`);
         return getPayload(response.data);
     },
 
     async deleteInventory(id: number): Promise<void> {
-        await axiosInstance.delete(`/inventory/${id}`);
+        await axiosInstance.delete(`/admin/inventory/${id}`);
     },
 
     async updateRecipe(id: number, data: { quantity_used: number }): Promise<Recipe> {
-        const response = await axiosInstance.put<ApiResponse<Recipe>>(`/recipes/${id}`, data);
+        const response = await axiosInstance.put<ApiResponse<Recipe>>(`/admin/recipes/${id}`, data);
         return getPayload(response.data);
     },
 
     async deleteRecipe(id: number): Promise<void> {
-        await axiosInstance.delete(`/recipes/${id}`);
+        await axiosInstance.delete(`/admin/recipes/${id}`);
     },
 };
 

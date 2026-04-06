@@ -82,10 +82,7 @@ const paymentMethods: PaymentOption[] = [
 const SHIPPING_FEE = 30000;
 
 function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
-    }).format(amount);
+    return `${Math.round(amount).toLocaleString('vi-VN')} vnđ`;
 }
 
 function mapCartItems(items: ReturnType<typeof useCart>['items']): LocalOrderItem[] {
@@ -336,7 +333,7 @@ export default function CheckoutPage() {
                 return;
             }
 
-            throw new Error('Khong tao duoc lien ket thanh toan. Vui long thu lai.');
+            throw new Error('Không tạo được liên kết thanh toán. Vui lòng thử lại.');
         } catch (error) {
             setShowProcessingModal(false);
             const errorMessage = error instanceof Error ? error.message : 'Không thể đặt hàng. Vui lòng thử lại.';

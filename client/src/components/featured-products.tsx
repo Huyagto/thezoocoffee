@@ -1,6 +1,7 @@
 'use client';
 import { ProductCard } from '@/components/product-card';
 import { useState, useEffect } from 'react';
+import { formatCurrency } from '@/lib/currency';
 import { productService } from '@/services/product.service';
 import type { Product } from '@/types/api';
 
@@ -68,9 +69,7 @@ export function FeaturedProducts() {
                             id={product.id}
                             name={product.name}
                             description={product.description || ''}
-                            price={`$${Number(product.price)
-                                .toFixed(0)
-                                .replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`}
+                            price={formatCurrency(product.price)}
                             image={product.image || '/images/default.jpg'}
                         />
                     ))}

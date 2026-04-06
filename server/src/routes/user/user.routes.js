@@ -5,8 +5,6 @@ const { asyncHandler } = require('../../auth/checkAuth');
 
 const { authUser } = require('../../middleware/authUser');
 
-const { requireAdmin } = require('../../middleware/requireAdmin');
-
 const userController = require('../../controller/user/user.controller');
 
 const {
@@ -15,7 +13,6 @@ const {
     validateForgotPassword,
     validateResetPassword,
     validateUpdateProfile,
-    validateUpdateUserRole,
 } = require('../../validators/user.validator');
 
 router.post('/register', validateRegister, asyncHandler(userController.register));
@@ -31,8 +28,5 @@ router.get('/google', asyncHandler(userController.loginOauth2Google));
 router.get('/google/callback', asyncHandler(userController.Oauth2callbackGoogle));
 router.get('/facebook', asyncHandler(userController.loginOauth2Facebook));
 router.get('/facebook/callback', asyncHandler(userController.Oauth2callbackFacebook));
-router.get('/users', authUser, requireAdmin, asyncHandler(userController.getUsers));
-router.patch('/:id', authUser, requireAdmin, validateUpdateUserRole, asyncHandler(userController.updateUserRole));
-router.delete('/:id', authUser, requireAdmin, asyncHandler(userController.deleteUser));
 
 module.exports = router;

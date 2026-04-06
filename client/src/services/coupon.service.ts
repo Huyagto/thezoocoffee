@@ -6,7 +6,7 @@ const getPayload = <T>(response: ApiResponse<T>): T => response.metadata ?? resp
 export const couponService = {
   async validate(code: string, subtotal: number): Promise<CouponValidationResult> {
     const response = await axiosInstance.post<ApiResponse<CouponValidationResult>>(
-      "/coupons/validate",
+      "/user/coupons/validate",
       {
         code,
         subtotal,

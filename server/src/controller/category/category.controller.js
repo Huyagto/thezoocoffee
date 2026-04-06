@@ -18,7 +18,7 @@ class CategoryController {
         });
 
         new OK({
-            message: 'Lấy danh mục thành công',
+            message: 'Lay danh muc thanh cong',
             metadata: categories,
         }).send(res);
     }
@@ -28,7 +28,7 @@ class CategoryController {
         const categoryId = Number(id);
 
         if (Number.isNaN(categoryId)) {
-            throw new BadRequestError('ID danh mục không hợp lệ');
+            throw new BadRequestError('ID danh muc khong hop le');
         }
 
         const category = await prisma.categories.findUnique({
@@ -43,11 +43,11 @@ class CategoryController {
         });
 
         if (!category) {
-            throw new NotFoundError('Danh mục không tồn tại');
+            throw new NotFoundError('Danh muc khong ton tai');
         }
 
         new OK({
-            message: 'Lấy danh mục thành công',
+            message: 'Lay danh muc thanh cong',
             metadata: category,
         }).send(res);
     }
@@ -61,7 +61,7 @@ class CategoryController {
         });
 
         if (existingCategory) {
-            throw new ConflictRequestError('Danh mục đã tồn tại');
+            throw new ConflictRequestError('Danh muc da ton tai');
         }
 
         const category = await prisma.categories.create({
@@ -79,7 +79,7 @@ class CategoryController {
         });
 
         new Created({
-            message: 'Tạo danh mục thành công',
+            message: 'Tao danh muc thanh cong',
             metadata: category,
         }).send(res);
     }
@@ -90,7 +90,7 @@ class CategoryController {
         const categoryId = Number(id);
 
         if (Number.isNaN(categoryId)) {
-            throw new BadRequestError('ID danh mục không hợp lệ');
+            throw new BadRequestError('ID danh muc khong hop le');
         }
 
         const existingCategory = await prisma.categories.findUnique({
@@ -98,7 +98,7 @@ class CategoryController {
         });
 
         if (!existingCategory) {
-            throw new NotFoundError('Danh mục không tồn tại');
+            throw new NotFoundError('Danh muc khong ton tai');
         }
 
         if (name && name.trim() !== existingCategory.name) {
@@ -107,7 +107,7 @@ class CategoryController {
                 where: { name: normalizedName },
             });
             if (nameConflict) {
-                throw new ConflictRequestError('Tên danh mục đã tồn tại');
+                throw new ConflictRequestError('Ten danh muc da ton tai');
             }
         }
 
@@ -128,7 +128,7 @@ class CategoryController {
         });
 
         new OK({
-            message: 'Cập nhật danh mục thành công',
+            message: 'Cap nhat danh muc thanh cong',
             metadata: updatedCategory,
         }).send(res);
     }
@@ -138,7 +138,7 @@ class CategoryController {
         const categoryId = Number(id);
 
         if (Number.isNaN(categoryId)) {
-            throw new BadRequestError('ID danh mục không hợp lệ');
+            throw new BadRequestError('ID danh muc khong hop le');
         }
 
         const existingCategory = await prisma.categories.findUnique({
@@ -146,7 +146,7 @@ class CategoryController {
         });
 
         if (!existingCategory) {
-            throw new NotFoundError('Danh mục không tồn tại');
+            throw new NotFoundError('Danh muc khong ton tai');
         }
 
         const newStatus = existingCategory.status === 'active' ? 'inactive' : 'active';
@@ -164,7 +164,7 @@ class CategoryController {
         });
 
         new OK({
-            message: `Chuyển trạng thái danh mục thành công`,
+            message: 'Chuyen trang thai danh muc thanh cong',
             metadata: updatedCategory,
         }).send(res);
     }
@@ -174,7 +174,7 @@ class CategoryController {
         const categoryId = Number(id);
 
         if (Number.isNaN(categoryId)) {
-            throw new BadRequestError('ID danh mục không hợp lệ');
+            throw new BadRequestError('ID danh muc khong hop le');
         }
 
         const existingCategory = await prisma.categories.findUnique({
@@ -182,16 +182,15 @@ class CategoryController {
         });
 
         if (!existingCategory) {
-            throw new NotFoundError('Danh mục không tồn tại');
+            throw new NotFoundError('Danh muc khong ton tai');
         }
 
-        // Check if has products
         const productCount = await prisma.products.count({
             where: { category_id: categoryId },
         });
 
         if (productCount > 0) {
-            throw new BadRequestError('Không thể xóa danh mục có sản phẩm liên kết');
+            throw new BadRequestError('Khong the xoa danh muc co san pham lien ket');
         }
 
         await prisma.categories.delete({
@@ -199,7 +198,7 @@ class CategoryController {
         });
 
         new OK({
-            message: 'Xóa danh mục thành công',
+            message: 'Xoa danh muc thanh cong',
         }).send(res);
     }
 }

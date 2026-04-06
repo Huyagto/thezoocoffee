@@ -9,9 +9,7 @@ const paymentController = require('../../controller/payment/payment.controller')
 router.get('/callback/:provider', asyncHandler(paymentController.paymentCallback));
 router.post('/callback/zalopay', asyncHandler(paymentController.zalopayCallback));
 router.get('/gateway/:provider', asyncHandler(paymentController.gatewayPage));
-router.get('/', authUser, requireAdmin, asyncHandler(paymentController.getPaymentsAdmin));
 router.post('/:orderId/initiate', authUser, asyncHandler(paymentController.createPayment));
 router.get('/:orderId', authUser, asyncHandler(paymentController.getPaymentById));
-router.patch('/:orderId', authUser, requireAdmin, asyncHandler(paymentController.updatePayment));
 
 module.exports = router;

@@ -7,10 +7,10 @@ import type {
 } from "@/types/api"
 
 const ORDER_ENDPOINTS = {
-  CHECKOUT: "/orders/checkout",
-  GET_ORDERS: "/orders",
-  GET_ORDER_BY_ID: (id: string) => `/orders/${id}`,
-  CANCEL_ORDER: (id: string) => `/orders/${id}/cancel`,
+  CHECKOUT: "/user/orders/checkout",
+  GET_ORDERS: "/user/orders",
+  GET_ORDER_BY_ID: (id: string) => `/user/orders/${id}`,
+  CANCEL_ORDER: (id: string) => `/user/orders/${id}/cancel`,
 }
 
 export interface GetOrdersParams {
