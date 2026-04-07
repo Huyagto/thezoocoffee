@@ -36,6 +36,11 @@ const SAFE_USER_SELECT = {
     email: true,
     phone: true,
     address: true,
+    province_name: true,
+    district_name: true,
+    ward_name: true,
+    to_district_id: true,
+    to_ward_code: true,
     role: true,
     created_at: true,
     updated_at: true,
@@ -91,7 +96,7 @@ const sendClientRedirect = (res, path = '/profile') => {
 
 class UserController {
     async register(req, res) {
-        const { name, email, password, phone, address } = req.body;
+        const { name, email, password, phone, address, provinceName, districtName, wardName, toDistrictId, toWardCode } = req.body;
         const normalizedEmail = normalizeEmail(email);
 
         const existingUser = await prisma.users.findUnique({
@@ -110,6 +115,11 @@ class UserController {
                 email: normalizedEmail,
                 phone: normalizeString(phone),
                 address: normalizeString(address),
+                province_name: normalizeString(provinceName),
+                district_name: normalizeString(districtName),
+                ward_name: normalizeString(wardName),
+                to_district_id: toDistrictId ? Number(toDistrictId) : null,
+                to_ward_code: normalizeString(toWardCode),
                 password_hash,
                 role: DEFAULT_ROLE,
             },
@@ -119,6 +129,11 @@ class UserController {
                 email: true,
                 phone: true,
                 address: true,
+                province_name: true,
+                district_name: true,
+                ward_name: true,
+                to_district_id: true,
+                to_ward_code: true,
                 role: true,
                 created_at: true,
             },
@@ -290,6 +305,11 @@ class UserController {
                 role: true,
                 phone: true,
                 address: true,
+                province_name: true,
+                district_name: true,
+                ward_name: true,
+                to_district_id: true,
+                to_ward_code: true,
             },
         });
 
@@ -310,7 +330,7 @@ class UserController {
             throw new AuthFailureError('Vui long dang nhap');
         }
 
-        const { name, phone, address } = req.body;
+        const { name, phone, address, provinceName, districtName, wardName, toDistrictId, toWardCode } = req.body;
 
         const updatedUser = await prisma.users.update({
             where: { id: userId },
@@ -318,6 +338,11 @@ class UserController {
                 name: name.trim(),
                 phone: phone?.trim() || null,
                 address: address?.trim() || null,
+                province_name: provinceName?.trim() || null,
+                district_name: districtName?.trim() || null,
+                ward_name: wardName?.trim() || null,
+                to_district_id: toDistrictId ? Number(toDistrictId) : null,
+                to_ward_code: toWardCode?.trim() || null,
             },
             select: {
                 id: true,
@@ -326,6 +351,11 @@ class UserController {
                 role: true,
                 phone: true,
                 address: true,
+                province_name: true,
+                district_name: true,
+                ward_name: true,
+                to_district_id: true,
+                to_ward_code: true,
             },
         });
 

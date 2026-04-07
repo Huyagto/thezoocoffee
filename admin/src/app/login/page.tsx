@@ -6,17 +6,57 @@ import { LockKeyhole, Mail } from "lucide-react"
 
 import { useAuth } from "@/context/auth-context"
 
+const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d\S]{8,50}$/
+
+type LoginErrors = {
+  email?: string
+  password?: string
+  form?: string
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const { login, refreshUser } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [errorMessage, setErrorMessage] = useState("")
+  const [errors, setErrors] = useState<LoginErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const validateForm = (): LoginErrors => {
+    const nextErrors: LoginErrors = {}
+    const trimmedEmail = email.trim()
+
+    if (!trimmedEmail) {
+      nextErrors.email = "Vui lòng nhập email."
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      nextErrors.email = "Email chưa đúng định dạng."
+    }
+
+    if (!password.trim()) {
+      nextErrors.password = "Vui lòng nhập mật khẩu."
+    } else if (password.length < 8) {
+      nextErrors.password = "Mật khẩu phải có ít nhất 8 ký tự."
+    } else if (!/[A-Za-z]/.test(password)) {
+      nextErrors.password = "Mật khẩu phải có ít nhất 1 chữ cái."
+    } else if (!/\d/.test(password)) {
+      nextErrors.password = "Mật khẩu phải có ít nhất 1 chữ số."
+    } else if (!PASSWORD_RULE.test(password)) {
+      nextErrors.password = "Mật khẩu phải gồm cả chữ và số."
+    }
+
+    return nextErrors
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setErrorMessage("")
+
+    const validationErrors = validateForm()
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors)
+      return
+    }
+
+    setErrors({})
     setIsSubmitting(true)
 
     try {
@@ -28,16 +68,18 @@ export default function LoginPage() {
       const currentUser = user.role ? user : await refreshUser()
 
       if (currentUser?.role && currentUser.role !== "admin") {
-        setErrorMessage("Tài khoản này không có quyền truy cập trang quản trị.")
+        setErrors({
+          form: "Tài khoản này không có quyền truy cập trang quản trị.",
+        })
         return
       }
 
       router.replace("/dashboard")
       router.refresh()
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Không thể đăng nhập."
-      )
+      setErrors({
+        form: error instanceof Error ? error.message : "Không thể đăng nhập.",
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -61,8 +103,7 @@ export default function LoginPage() {
             <div className="rounded-3xl border border-white/15 bg-white/10 p-4">
               <p className="text-sm font-semibold">URL riêng</p>
               <p className="mt-2 text-sm text-white/78">
-                Chạy trang này tại{" "}
-                <span className="font-semibold">localhost:3001</span>
+                Chạy trang này tại <span className="font-semibold">localhost:3001</span>
               </p>
             </div>
             <div className="rounded-3xl border border-white/15 bg-white/10 p-4">
@@ -85,7 +126,7 @@ export default function LoginPage() {
             Tiếp tục với tài khoản có quyền quản trị.
           </p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-5">
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
                 Email
@@ -95,12 +136,17 @@ export default function LoginPage() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    setEmail(event.target.value)
+                    setErrors((prev) => ({ ...prev, email: undefined, form: undefined }))
+                  }}
                   placeholder="admin@gmail.com"
                   className="w-full border-0 bg-transparent p-0 text-sm text-[var(--foreground)] outline-none"
-                  required
                 />
               </div>
+              {errors.email ? (
+                <p className="mt-2 text-sm text-[var(--danger)]">{errors.email}</p>
+              ) : null}
             </label>
 
             <label className="block">
@@ -112,17 +158,22 @@ export default function LoginPage() {
                 <input
                   type="password"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    setPassword(event.target.value)
+                    setErrors((prev) => ({ ...prev, password: undefined, form: undefined }))
+                  }}
                   placeholder="Nhập mật khẩu"
                   className="w-full border-0 bg-transparent p-0 text-sm text-[var(--foreground)] outline-none"
-                  required
                 />
               </div>
+              {errors.password ? (
+                <p className="mt-2 text-sm text-[var(--danger)]">{errors.password}</p>
+              ) : null}
             </label>
 
-            {errorMessage ? (
+            {errors.form ? (
               <div className="rounded-2xl border border-[rgba(157,49,49,0.18)] bg-[rgba(157,49,49,0.08)] px-4 py-3 text-sm text-[var(--danger)]">
-                {errorMessage}
+                {errors.form}
               </div>
             ) : null}
 

@@ -15,6 +15,7 @@ const adminUploadRoutes = require('./admin/upload/upload.admin.routes');
 const categoryRoutes = require('./category/category.routes');
 const productRoutes = require('./product/product.routes');
 const paymentRoutes = require('./payment/payment.routes');
+const shippingRoutes = require('./shipping/shipping.routes');
 
 function routes(app) {
     app.use('/api/user', userRoutes);
@@ -34,6 +35,7 @@ function routes(app) {
     app.use('/api/categories', categoryRoutes);
     app.use('/api/products', productRoutes);
     app.use('/api/payments', paymentRoutes);
+    app.use('/api/shipping', shippingRoutes);
 }
 
 module.exports = routes;

@@ -2,6 +2,7 @@ const prisma = require('../../config/prisma');
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../../core/error.response');
 const { OK, Created } = require('../../core/success.response');
 const { PAYMENT_METHOD_MAP, createTransactionCode } = require('../payment/payment.model');
+const { getShippingFeeQuote, normalizeGhnError } = require('../../services/ghn.service');
 const {
     findCouponByCode,
     validateCouponAvailability,
@@ -13,6 +14,7 @@ const ORDER_SELECT = {
     coupon_id: true,
     order_code: true,
     discount_amount: true,
+    shipping_fee: true,
     total_amount: true,
     shipping_address: true,
     note: true,
@@ -42,10 +44,20 @@ const ORDER_SELECT = {
             },
         },
     },
+    payments: {
+        orderBy: { created_at: 'desc' },
+        take: 1,
+        select: {
+            id: true,
+            method: true,
+            status: true,
+            transaction_code: true,
+            created_at: true,
+        },
+    },
 };
 
 const CANCELLABLE_STATUSES = ['pending', 'confirmed'];
-const SHIPPING_FEE = 30000;
 
 function normalizeOrder(order) {
     if (!order) {
@@ -55,7 +67,10 @@ function normalizeOrder(order) {
     return {
         ...order,
         user: order.users,
+        payment: order.payments?.[0] || null,
+        payment_method: order.payments?.[0]?.method || null,
         discount_amount: Number(order.discount_amount || 0),
+        shipping_fee: Number(order.shipping_fee || 0),
         total_amount: Number(order.total_amount || 0),
     };
 }
@@ -66,6 +81,9 @@ function buildShippingAddress(shippingInfo) {
         shippingInfo.phone?.trim(),
         shippingInfo.email?.trim(),
         shippingInfo.address?.trim(),
+        shippingInfo.wardName?.trim(),
+        shippingInfo.districtName?.trim(),
+        shippingInfo.provinceName?.trim(),
     ]
         .filter(Boolean)
         .join(' | ');
@@ -98,6 +116,11 @@ class OrderController {
                 email: true,
                 phone: true,
                 address: true,
+                province_name: true,
+                district_name: true,
+                ward_name: true,
+                to_district_id: true,
+                to_ward_code: true,
             },
         });
 
@@ -105,15 +128,29 @@ class OrderController {
             throw new NotFoundError('Nguoi dung khong ton tai');
         }
 
-        if (!currentUser.name?.trim() || !currentUser.phone?.trim() || !currentUser.address?.trim()) {
-            throw new BadRequestError('Vui long cap nhat day du ho ten, so dien thoai va dia chi trong tai khoan truoc khi thanh toan');
+        if (
+            !currentUser.name?.trim() ||
+            !currentUser.phone?.trim() ||
+            !currentUser.address?.trim() ||
+            !currentUser.province_name?.trim() ||
+            !currentUser.district_name?.trim() ||
+            !currentUser.ward_name?.trim() ||
+            !currentUser.to_district_id ||
+            !currentUser.to_ward_code?.trim()
+        ) {
+            throw new BadRequestError('Vui long cap nhat day du ho ten, so dien thoai, dia chi va khu vuc giao hang trong tai khoan truoc khi thanh toan');
         }
 
         if (
             !shippingInfo.fullName?.trim() ||
             !shippingInfo.phone?.trim() ||
             !shippingInfo.email?.trim() ||
-            !shippingInfo.address?.trim()
+            !shippingInfo.address?.trim() ||
+            !shippingInfo.provinceName?.trim() ||
+            !shippingInfo.districtName?.trim() ||
+            !shippingInfo.wardName?.trim() ||
+            Number.isNaN(Number(shippingInfo.toDistrictId || 0)) ||
+            !String(shippingInfo.toWardCode || '').trim()
         ) {
             throw new BadRequestError('Vui long nhap day du thong tin giao hang');
         }
@@ -139,6 +176,7 @@ class OrderController {
             },
             select: {
                 id: true,
+                name: true,
                 price: true,
                 status: true,
             },
@@ -179,7 +217,24 @@ class OrderController {
             discountAmount = calculateDiscount(coupon, subtotal);
         }
 
-        const totalAmount = Math.max(0, subtotal - discountAmount) + SHIPPING_FEE;
+        let shippingQuote;
+
+        try {
+            shippingQuote = await getShippingFeeQuote({
+                toDistrictId: Number(shippingInfo.toDistrictId),
+                toWardCode: String(shippingInfo.toWardCode).trim(),
+                items: normalizedItems.map((item) => ({
+                    name: productMap.get(item.productId)?.name || `PRODUCT-${item.productId}`,
+                    quantity: item.quantity,
+                })),
+                insuranceValue: subtotal,
+            });
+        } catch (error) {
+            throw new BadRequestError(normalizeGhnError(error));
+        }
+
+        const shippingFee = Number(shippingQuote.shippingFee || 0);
+        const totalAmount = Math.max(0, subtotal - discountAmount) + shippingFee;
 
         const order = await prisma.$transaction(async (tx) => {
             const orderCode = createOrderCode();
@@ -191,6 +246,7 @@ class OrderController {
                     coupon_id: coupon?.id || null,
                     order_code: orderCode,
                     discount_amount: discountAmount,
+                    shipping_fee: shippingFee,
                     total_amount: totalAmount,
                     shipping_address: buildShippingAddress(shippingInfo),
                     note: shippingInfo.note?.trim() || null,

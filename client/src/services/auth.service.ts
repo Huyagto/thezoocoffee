@@ -54,6 +54,11 @@ export const authService = {
     name: string
     phone?: string
     address?: string
+    provinceName?: string
+    districtName?: string
+    wardName?: string
+    toDistrictId?: number
+    toWardCode?: string
   }): Promise<User> {
     const response = await axiosInstance.put<ApiResponse<User>>(
       AUTH_ENDPOINTS.UPDATE_PROFILE,

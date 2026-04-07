@@ -95,11 +95,13 @@ export interface Order {
     coupon_id?: number | null;
     order_code: string;
     discount_amount?: number | string | null;
+    shipping_fee?: number | string | null;
     total_amount: number | string;
     shipping_address: string;
     note?: string | null;
     order_status: 'pending' | 'confirmed' | 'preparing' | 'completed' | 'cancelled';
     payment_status: 'unpaid' | 'paid' | 'failed' | 'refunded';
+    payment_method?: 'cash' | 'momo' | 'banking' | 'zalopay' | 'vnpay' | null;
     created_at?: string;
     updated_at?: string;
     user?: {
@@ -108,6 +110,13 @@ export interface Order {
         email: string;
     };
     order_items?: OrderItem[];
+    payment?: {
+        id: number;
+        method: 'cash' | 'momo' | 'banking' | 'zalopay' | 'vnpay';
+        status?: 'pending' | 'success' | 'failed' | 'refunded';
+        transaction_code?: string | null;
+        created_at?: string;
+    } | null;
 }
 
 export interface Coupon {

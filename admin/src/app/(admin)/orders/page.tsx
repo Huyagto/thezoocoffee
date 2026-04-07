@@ -177,6 +177,10 @@ export default function OrdersPage() {
                                                     (item) => item.value === order.payment_status,
                                                 )?.label ?? order.payment_status}
                                             </span>
+                                            <span>
+                                                Hình thức:{' '}
+                                                {order.payment_method ?? order.payment?.method ?? 'Chưa có'}
+                                            </span>
                                         </div>
                                     </div>
 

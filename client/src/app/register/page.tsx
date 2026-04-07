@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Coffee, Mail, Lock, Eye, EyeOff, User } from 'lucide-react';
+import { Coffee, Eye, EyeOff, Lock, Mail, User } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,16 @@ import { Toaster } from '@/components/ui/toaster';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import authService from '@/services/auth.service';
+
+const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d\S]{8,50}$/;
+
+type RegisterErrors = {
+    fullName?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+    form?: string;
+};
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -26,19 +36,56 @@ export default function RegisterPage() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+    const [errors, setErrors] = useState<RegisterErrors>({});
+
+    const validateForm = (): RegisterErrors => {
+        const nextErrors: RegisterErrors = {};
+        const trimmedName = fullName.trim();
+        const trimmedEmail = email.trim();
+
+        if (!trimmedName) {
+            nextErrors.fullName = 'Vui lòng nhập họ và tên.';
+        } else if (trimmedName.length < 2) {
+            nextErrors.fullName = 'Họ và tên phải có ít nhất 2 ký tự.';
+        }
+
+        if (!trimmedEmail) {
+            nextErrors.email = 'Vui lòng nhập email.';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+            nextErrors.email = 'Email chưa đúng định dạng.';
+        }
+
+        if (!password.trim()) {
+            nextErrors.password = 'Vui lòng nhập mật khẩu.';
+        } else if (password.length < 8) {
+            nextErrors.password = 'Mật khẩu phải có ít nhất 8 ký tự.';
+        } else if (!/[A-Za-z]/.test(password)) {
+            nextErrors.password = 'Mật khẩu phải có ít nhất 1 chữ cái.';
+        } else if (!/\d/.test(password)) {
+            nextErrors.password = 'Mật khẩu phải có ít nhất 1 chữ số.';
+        } else if (!PASSWORD_RULE.test(password)) {
+            nextErrors.password = 'Mật khẩu phải gồm cả chữ và số.';
+        }
+
+        if (!confirmPassword.trim()) {
+            nextErrors.confirmPassword = 'Vui lòng nhập lại mật khẩu.';
+        } else if (password !== confirmPassword) {
+            nextErrors.confirmPassword = 'Mật khẩu xác nhận chưa khớp.';
+        }
+
+        return nextErrors;
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (password !== confirmPassword) {
-            toast({
-                title: 'Mật khẩu chưa khớp',
-                description: 'Vui lòng kiểm tra lại phần xác nhận mật khẩu.',
-                variant: 'destructive',
-            });
+        const validationErrors = validateForm();
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
             return;
         }
 
+        setErrors({});
         setIsSubmitting(true);
 
         try {
@@ -57,9 +104,11 @@ export default function RegisterPage() {
             router.push('/');
             router.refresh();
         } catch (error) {
+            const message = error instanceof Error ? error.message : 'Không thể tạo tài khoản lúc này.';
+            setErrors({ form: message });
             toast({
                 title: 'Đăng ký thất bại',
-                description: error instanceof Error ? error.message : 'Không thể tạo tài khoản lúc này.',
+                description: message,
                 variant: 'destructive',
             });
         } finally {
@@ -93,7 +142,7 @@ export default function RegisterPage() {
                             </p>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        <form onSubmit={handleSubmit} noValidate className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="fullName">Họ và tên</Label>
                                 <div className="relative">
@@ -103,11 +152,15 @@ export default function RegisterPage() {
                                         type="text"
                                         placeholder="Nguyễn Văn A"
                                         value={fullName}
-                                        onChange={(e) => setFullName(e.target.value)}
+                                        onChange={(e) => {
+                                            setFullName(e.target.value);
+                                            setErrors((prev) => ({ ...prev, fullName: undefined, form: undefined }));
+                                        }}
                                         className="pl-10"
-                                        required
+                                        aria-invalid={Boolean(errors.fullName)}
                                     />
                                 </div>
+                                {errors.fullName ? <p className="text-sm text-destructive">{errors.fullName}</p> : null}
                             </div>
 
                             <div className="space-y-2">
@@ -119,11 +172,15 @@ export default function RegisterPage() {
                                         type="email"
                                         placeholder="ban@example.com"
                                         value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
+                                        onChange={(e) => {
+                                            setEmail(e.target.value);
+                                            setErrors((prev) => ({ ...prev, email: undefined, form: undefined }));
+                                        }}
                                         className="pl-10"
-                                        required
+                                        aria-invalid={Boolean(errors.email)}
                                     />
                                 </div>
+                                {errors.email ? <p className="text-sm text-destructive">{errors.email}</p> : null}
                             </div>
 
                             <div className="space-y-2">
@@ -135,9 +192,12 @@ export default function RegisterPage() {
                                         type={showPassword ? 'text' : 'password'}
                                         placeholder="Tạo mật khẩu"
                                         value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
+                                        onChange={(e) => {
+                                            setPassword(e.target.value);
+                                            setErrors((prev) => ({ ...prev, password: undefined, form: undefined }));
+                                        }}
                                         className="pl-10 pr-10"
-                                        required
+                                        aria-invalid={Boolean(errors.password)}
                                     />
                                     <button
                                         type="button"
@@ -148,6 +208,11 @@ export default function RegisterPage() {
                                         <span className="sr-only">{showPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}</span>
                                     </button>
                                 </div>
+                                {errors.password ? (
+                                    <p className="text-sm text-destructive">{errors.password}</p>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">Mật khẩu cần 8-50 ký tự, có ít nhất 1 chữ và 1 số.</p>
+                                )}
                             </div>
 
                             <div className="space-y-2">
@@ -159,9 +224,12 @@ export default function RegisterPage() {
                                         type={showConfirmPassword ? 'text' : 'password'}
                                         placeholder="Nhập lại mật khẩu"
                                         value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        onChange={(e) => {
+                                            setConfirmPassword(e.target.value);
+                                            setErrors((prev) => ({ ...prev, confirmPassword: undefined, form: undefined }));
+                                        }}
                                         className="pl-10 pr-10"
-                                        required
+                                        aria-invalid={Boolean(errors.confirmPassword)}
                                     />
                                     <button
                                         type="button"
@@ -174,11 +242,21 @@ export default function RegisterPage() {
                                         </span>
                                     </button>
                                 </div>
+                                {errors.confirmPassword ? (
+                                    <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                                ) : null}
                             </div>
 
                             <p className="text-xs text-muted-foreground">
-                                Khi tạo tài khoản, bạn đồng ý với điều khoản sử dụng và chính sách bảo mật của TheZooCoffee.
+                                Khi tạo tài khoản, bạn đồng ý với điều khoản sử dụng và chính sách bảo mật của
+                                TheZooCoffee.
                             </p>
+
+                            {errors.form ? (
+                                <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                                    {errors.form}
+                                </div>
+                            ) : null}
 
                             <Button
                                 type="submit"

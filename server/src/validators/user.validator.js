@@ -108,9 +108,53 @@ const validateResetPassword = (req, res, next) => {
     }
 };
 
+const validateVerifyForgotPassword = (req, res, next) => {
+    try {
+        const { otp, password } = req.body;
+
+        if (!otp || typeof otp !== 'string' || !otp.trim()) {
+            throw new BadRequestError('OTP la bat buoc');
+        }
+
+        if (!/^\d{6}$/.test(otp.trim())) {
+            throw new UnprocessableEntityError('OTP khong dung dinh dang');
+        }
+
+        if (!password || typeof password !== 'string') {
+            throw new BadRequestError('Mat khau moi la bat buoc');
+        }
+
+        if (!passwordRegex.test(password)) {
+            throw new UnprocessableEntityError('Mat khau moi khong hop le');
+        }
+
+        next();
+    } catch (error) {
+        next(error);
+    }
+};
+
+const validateVerifyResetPassword = (req, res, next) => {
+    try {
+        const { otp } = req.body;
+
+        if (!otp || typeof otp !== 'string' || !otp.trim()) {
+            throw new BadRequestError('OTP la bat buoc');
+        }
+
+        if (!/^\d{6}$/.test(otp.trim())) {
+            throw new UnprocessableEntityError('OTP khong dung dinh dang');
+        }
+
+        next();
+    } catch (error) {
+        next(error);
+    }
+};
+
 const validateUpdateProfile = (req, res, next) => {
     try {
-        const { name, phone, address } = req.body;
+        const { name, phone, address, provinceName, districtName, wardName, toDistrictId, toWardCode } = req.body;
 
         if (!name || typeof name !== 'string') {
             throw new BadRequestError('Ten la bat buoc');
@@ -132,6 +176,27 @@ const validateUpdateProfile = (req, res, next) => {
 
         if (address && address.trim().length < 5) {
             throw new BadRequestError('Dia chi qua ngan');
+        }
+
+        const hasShippingArea =
+            Boolean(provinceName?.trim()) ||
+            Boolean(districtName?.trim()) ||
+            Boolean(wardName?.trim()) ||
+            Boolean(String(toDistrictId || '').trim()) ||
+            Boolean(toWardCode?.trim());
+
+        if (hasShippingArea) {
+            if (!provinceName?.trim() || !districtName?.trim() || !wardName?.trim()) {
+                throw new BadRequestError('Thong tin tinh quan phuong la bat buoc');
+            }
+
+            if (!toDistrictId || Number.isNaN(Number(toDistrictId)) || Number(toDistrictId) <= 0) {
+                throw new BadRequestError('toDistrictId khong hop le');
+            }
+
+            if (!toWardCode?.trim()) {
+                throw new BadRequestError('toWardCode khong hop le');
+            }
         }
 
         next();
@@ -165,6 +230,8 @@ module.exports = {
     validateLogin,
     validateForgotPassword,
     validateResetPassword,
+    validateVerifyForgotPassword,
+    validateVerifyResetPassword,
     validateUpdateProfile,
     validateUpdateUserRole,
 };

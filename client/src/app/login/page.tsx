@@ -3,17 +3,25 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Coffee, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Coffee, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Spinner } from '@/components/ui/spinner';
 import { Toaster } from '@/components/ui/toaster';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import authService from '@/services/auth.service';
+
+const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d\S]{8,50}$/;
+
+type LoginErrors = {
+    email?: string;
+    password?: string;
+    form?: string;
+};
 
 export default function LoginPage() {
     const router = useRouter();
@@ -25,11 +33,43 @@ export default function LoginPage() {
     const [rememberMe, setRememberMe] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-    const [errorMessage, setErrorMessage] = useState('');
+    const [errors, setErrors] = useState<LoginErrors>({});
+
+    const validateForm = (): LoginErrors => {
+        const nextErrors: LoginErrors = {};
+        const trimmedEmail = email.trim();
+
+        if (!trimmedEmail) {
+            nextErrors.email = 'Vui lòng nhập email.';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+            nextErrors.email = 'Email chưa đúng định dạng.';
+        }
+
+        if (!password.trim()) {
+            nextErrors.password = 'Vui lòng nhập mật khẩu.';
+        } else if (password.length < 8) {
+            nextErrors.password = 'Mật khẩu phải có ít nhất 8 ký tự.';
+        } else if (!/[A-Za-z]/.test(password)) {
+            nextErrors.password = 'Mật khẩu phải có ít nhất 1 chữ cái.';
+        } else if (!/\d/.test(password)) {
+            nextErrors.password = 'Mật khẩu phải có ít nhất 1 chữ số.';
+        } else if (!PASSWORD_RULE.test(password)) {
+            nextErrors.password = 'Mật khẩu phải gồm cả chữ và số.';
+        }
+
+        return nextErrors;
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setErrorMessage('');
+
+        const validationErrors = validateForm();
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            return;
+        }
+
+        setErrors({});
         setIsSubmitting(true);
 
         try {
@@ -48,7 +88,7 @@ export default function LoginPage() {
             router.refresh();
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Không thể đăng nhập lúc này.';
-            setErrorMessage(message);
+            setErrors({ form: message });
             toast({
                 title: 'Đăng nhập thất bại',
                 description: message,
@@ -80,10 +120,12 @@ export default function LoginPage() {
                                 <span className="font-serif text-2xl font-bold tracking-tight text-foreground">TheZooCoffee</span>
                             </Link>
                             <h1 className="text-xl font-semibold text-foreground">Đăng nhập tài khoản</h1>
-                            <p className="mt-1 text-sm text-muted-foreground">Tiếp tục mua sắm và quản lý đơn hàng của bạn.</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Tiếp tục mua sắm và quản lý đơn hàng của bạn.
+                            </p>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-5">
+                        <form onSubmit={handleSubmit} noValidate className="space-y-5">
                             <div className="space-y-2">
                                 <Label htmlFor="email">Email</Label>
                                 <div className="relative">
@@ -95,12 +137,13 @@ export default function LoginPage() {
                                         value={email}
                                         onChange={(e) => {
                                             setEmail(e.target.value);
-                                            if (errorMessage) setErrorMessage('');
+                                            setErrors((prev) => ({ ...prev, email: undefined, form: undefined }));
                                         }}
                                         className="pl-10"
-                                        required
+                                        aria-invalid={Boolean(errors.email)}
                                     />
                                 </div>
+                                {errors.email ? <p className="text-sm text-destructive">{errors.email}</p> : null}
                             </div>
 
                             <div className="space-y-2">
@@ -114,10 +157,10 @@ export default function LoginPage() {
                                         value={password}
                                         onChange={(e) => {
                                             setPassword(e.target.value);
-                                            if (errorMessage) setErrorMessage('');
+                                            setErrors((prev) => ({ ...prev, password: undefined, form: undefined }));
                                         }}
                                         className="pl-10 pr-10"
-                                        required
+                                        aria-invalid={Boolean(errors.password)}
                                     />
                                     <button
                                         type="button"
@@ -128,6 +171,7 @@ export default function LoginPage() {
                                         <span className="sr-only">{showPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}</span>
                                     </button>
                                 </div>
+                                {errors.password ? <p className="text-sm text-destructive">{errors.password}</p> : null}
                             </div>
 
                             <div className="flex items-center justify-between">
@@ -144,9 +188,9 @@ export default function LoginPage() {
                                 <span className="text-sm text-muted-foreground">Bảo mật bằng phiên đăng nhập</span>
                             </div>
 
-                            {errorMessage ? (
+                            {errors.form ? (
                                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                                    {errorMessage}
+                                    {errors.form}
                                 </div>
                             ) : null}
 

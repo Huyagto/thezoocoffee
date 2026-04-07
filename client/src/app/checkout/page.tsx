@@ -33,6 +33,7 @@ import { useCart } from '@/context/cart-context';
 import orderService from '@/services/order.service';
 import paymentService from '@/services/payment.service';
 import couponService from '@/services/coupon.service';
+import shippingService from '@/services/shipping.service';
 import type { Coupon, PaymentMethod } from '@/types/api';
 
 interface PaymentOption {
@@ -79,8 +80,6 @@ const paymentMethods: PaymentOption[] = [
     },
 ];
 
-const SHIPPING_FEE = 30000;
-
 function formatCurrency(amount: number): string {
     return `${Math.round(amount).toLocaleString('vi-VN')} vnđ`;
 }
@@ -100,6 +99,13 @@ export default function CheckoutPage() {
     const { toast } = useToast();
     const { user: currentUser } = useAuth();
     const { items: cartItems, clearCart } = useCart();
+    const orderItems = mapCartItems(cartItems);
+    const shippingFeeItems = cartItems.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+    }));
+    const shippingFeeItemsKey = shippingFeeItems.map((item) => `${item.name}:${item.quantity}`).join('|');
+    const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('cod');
     const [selectedAddress, setSelectedAddress] = useState<AddressOption>('other');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -108,6 +114,8 @@ export default function CheckoutPage() {
     const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
     const [discountAmount, setDiscountAmount] = useState(0);
     const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+    const [shippingFee, setShippingFee] = useState<number | null>(null);
+    const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
     const [formData, setFormData] = useState({
         fullName: '',
         phone: '',
@@ -115,29 +123,36 @@ export default function CheckoutPage() {
         address: '',
         note: '',
     });
+    const total = Math.max(0, subtotal - discountAmount) + (shippingFee ?? 0);
 
-    useEffect(() => {
-        if (!currentUser) {
-            router.push('/login');
-            return;
-        }
-    }, [currentUser, router]);
     const savedProfile = {
         fullName: currentUser?.name || '',
         phone: currentUser?.phone || '',
         email: currentUser?.email || '',
         address: currentUser?.address || '',
+        provinceName: currentUser?.province_name || '',
+        districtName: currentUser?.district_name || '',
+        wardName: currentUser?.ward_name || '',
+        toDistrictId: currentUser?.to_district_id || 0,
+        toWardCode: currentUser?.to_ward_code || '',
     };
     const isProfileComplete =
         Boolean(savedProfile.fullName.trim()) &&
         Boolean(savedProfile.phone.trim()) &&
         Boolean(savedProfile.email.trim()) &&
-        Boolean(savedProfile.address.trim());
+        Boolean(savedProfile.address.trim()) &&
+        Boolean(savedProfile.provinceName.trim()) &&
+        Boolean(savedProfile.wardName.trim()) &&
+        Boolean(savedProfile.toDistrictId) &&
+        Boolean(savedProfile.toWardCode.trim());
     const hasSavedAddress = isProfileComplete;
     const missingProfileFields = [
         !savedProfile.fullName.trim() ? 'họ tên' : null,
         !savedProfile.phone.trim() ? 'số điện thoại' : null,
         !savedProfile.address.trim() ? 'địa chỉ' : null,
+        !savedProfile.provinceName.trim() || !savedProfile.wardName.trim()
+            ? 'tỉnh/phường'
+            : null,
     ].filter(Boolean) as string[];
 
     useEffect(() => {
@@ -170,14 +185,47 @@ export default function CheckoutPage() {
         }));
     }, [isProfileComplete, savedProfile.address, savedProfile.email, savedProfile.fullName, savedProfile.phone]);
 
+    useEffect(() => {
+        if (!savedProfile.toDistrictId || !savedProfile.toWardCode || orderItems.length === 0) {
+            setShippingFee(null);
+            setIsCalculatingShipping(false);
+            return;
+        }
+
+        let isMounted = true;
+        setIsCalculatingShipping(true);
+
+        shippingService
+            .getFee({
+                toDistrictId: Number(savedProfile.toDistrictId),
+                toWardCode: savedProfile.toWardCode,
+                insuranceValue: subtotal,
+                items: shippingFeeItems,
+            })
+            .then((quote) => {
+                if (isMounted) {
+                    setShippingFee(quote.shippingFee);
+                }
+            })
+            .catch(() => {
+                if (isMounted) {
+                    setShippingFee(null);
+                }
+            })
+            .finally(() => {
+                if (isMounted) {
+                    setIsCalculatingShipping(false);
+                }
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [savedProfile.toDistrictId, savedProfile.toWardCode, subtotal, shippingFeeItemsKey]);
+
     if (!currentUser) {
         return null;
     }
-
-    const orderItems = mapCartItems(cartItems);
-
-    const subtotal = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const total = Math.max(0, subtotal - discountAmount) + SHIPPING_FEE;
 
     const handleInputChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = event.target;
@@ -293,6 +341,23 @@ export default function CheckoutPage() {
             });
             return false;
         }
+        if (!savedProfile.provinceName.trim() || !savedProfile.wardName.trim() || !savedProfile.toDistrictId || !savedProfile.toWardCode.trim()) {
+            toast({
+                title: 'Thiếu khu vực giao hàng',
+                description: 'Vui lòng cập nhật tỉnh/thành và phường/xã trong tài khoản.',
+                variant: 'destructive',
+            });
+            return false;
+        }
+
+        if (shippingFee === null) {
+            toast({
+                title: 'Chưa tính được phí giao hàng',
+                description: 'Vui lòng chờ hệ thống lấy phí vận chuyển thực tế từ GHN.',
+                variant: 'destructive',
+            });
+            return false;
+        }
 
         return true;
     };
@@ -317,6 +382,11 @@ export default function CheckoutPage() {
                     phone: formData.phone.trim(),
                     email: formData.email.trim(),
                     address: formData.address.trim(),
+                    provinceName: savedProfile.provinceName,
+                    districtName: savedProfile.districtName,
+                    wardName: savedProfile.wardName,
+                    toDistrictId: savedProfile.toDistrictId,
+                    toWardCode: savedProfile.toWardCode,
                     note: formData.note.trim() || undefined,
                 },
                 paymentMethod: selectedPayment,
@@ -394,7 +464,7 @@ export default function CheckoutPage() {
                                                 Bạn cần cập nhật thông tin tài khoản trước khi thanh toán.
                                             </p>
                                             <p className="mt-2 text-sm text-muted-foreground">
-                                                Vui lòng bổ sung đầy đủ họ tên, số điện thoại và địa chỉ trong trang tài khoản, sau đó quay lại bước thanh toán.
+                                                Vui lòng bổ sung đầy đủ họ tên, số điện thoại, địa chỉ và khu vực giao hàng trong trang tài khoản, sau đó quay lại bước thanh toán.
                                             </p>
                                             <Button asChild className="mt-4">
                                                 <Link href="/profile">Đi tới tài khoản</Link>
@@ -495,6 +565,30 @@ export default function CheckoutPage() {
                                             </div>
                                         </>
                                     ) : null}
+
+                                    <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 text-sm">
+                                        <p className="font-medium text-foreground">Khu vực giao hàng lấy từ tài khoản</p>
+                                        <p className="mt-1 text-muted-foreground">
+                                            Hãy cập nhật tỉnh/thành và phường/xã ở trang tài khoản nếu bạn muốn đổi khu vực nhận hàng.
+                                        </p>
+                                        <p className="mt-3 text-foreground">
+                                            {[savedProfile.wardName, savedProfile.provinceName].filter(Boolean).join(', ') || 'Chưa cập nhật khu vực giao hàng'}
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-border/60 bg-muted/30 p-4 text-sm">
+                                        <p className="font-medium text-foreground">Phí giao hàng theo GHN</p>
+                                        <p className="mt-1 text-muted-foreground">
+                                            Phí giao hàng được tính tự động từ khu vực đã lưu trong tài khoản.
+                                        </p>
+                                        <p className="mt-3 font-semibold text-foreground">
+                                            {isCalculatingShipping
+                                                ? 'Đang tính phí giao hàng...'
+                                                : shippingFee !== null
+                                                  ? formatCurrency(shippingFee)
+                                                  : 'Chưa có phí giao hàng'}
+                                        </p>
+                                    </div>
                                 </div>
 
                                 <div className="mt-4 space-y-2">
@@ -642,7 +736,13 @@ export default function CheckoutPage() {
                                         </div>
                                         <div className="flex justify-between text-muted-foreground">
                                             <span>Phí giao hàng</span>
-                                            <span>{formatCurrency(SHIPPING_FEE)}</span>
+                                            <span>
+                                                {isCalculatingShipping
+                                                    ? 'Đang tính...'
+                                                    : shippingFee !== null
+                                                      ? formatCurrency(shippingFee)
+                                                      : '--'}
+                                            </span>
                                         </div>
                                         <div className="flex justify-between text-muted-foreground">
                                             <span>Giảm giá</span>
@@ -660,7 +760,7 @@ export default function CheckoutPage() {
                                     <Button
                                         size="lg"
                                         onClick={handlePlaceOrder}
-                                        disabled={isProcessing || !isProfileComplete}
+                                        disabled={isProcessing || !isProfileComplete || isCalculatingShipping || shippingFee === null}
                                         className="mt-6 w-full gap-2"
                                     >
                                         {isProcessing ? (
@@ -712,3 +812,4 @@ export default function CheckoutPage() {
         </div>
     );
 }
+

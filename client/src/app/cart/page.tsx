@@ -12,8 +12,6 @@ import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/cart-context';
 import { useAuth } from '@/context/auth-context';
 
-const SHIPPING_FEE = 30000;
-
 function formatCurrency(amount: number) {
     return `${Math.round(amount).toLocaleString('vi-VN')} vnđ`;
 }
@@ -32,8 +30,6 @@ export default function CartPage() {
     if (!user) {
         return null;
     }
-
-    const grandTotal = totalPrice + SHIPPING_FEE;
 
     return (
         <div className="min-h-screen bg-background">
@@ -166,14 +162,14 @@ export default function CartPage() {
                                     </div>
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="text-muted-foreground">Phí giao hàng</span>
-                                        <span className="text-foreground">{formatCurrency(SHIPPING_FEE)}</span>
+                                        <span className="text-foreground">Tính theo địa chỉ ở bước thanh toán</span>
                                     </div>
 
                                     <div className="my-4 border-t border-border" />
 
                                     <div className="flex items-center justify-between">
-                                        <span className="font-semibold text-foreground">Tổng cộng</span>
-                                        <span className="text-xl font-bold text-foreground">{formatCurrency(grandTotal)}</span>
+                                        <span className="font-semibold text-foreground">Tạm tổng</span>
+                                        <span className="text-xl font-bold text-foreground">{formatCurrency(totalPrice)}</span>
                                     </div>
                                 </div>
 

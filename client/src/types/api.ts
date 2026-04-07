@@ -6,6 +6,11 @@ export interface User {
   role?: string
   phone?: string
   address?: string
+  province_name?: string
+  district_name?: string
+  ward_name?: string
+  to_district_id?: number | null
+  to_ward_code?: string | null
   avatar?: string
   createdAt?: string
   updatedAt?: string
@@ -22,6 +27,11 @@ export interface RegisterData {
   name: string
   phone?: string
   address?: string
+  provinceName?: string
+  districtName?: string
+  wardName?: string
+  toDistrictId?: number
+  toWardCode?: string
 }
 
 export type AuthResponse = User
@@ -124,7 +134,36 @@ export interface ShippingInfo {
   phone: string
   email: string
   address: string
+  provinceName: string
+  districtName: string
+  wardName: string
+  toDistrictId: number
+  toWardCode: string
   note?: string
+}
+
+export interface ShippingProvince {
+  ProvinceID: number
+  ProvinceName: string
+}
+
+export interface ShippingDistrict {
+  DistrictID: number
+  ProvinceID: number
+  DistrictName: string
+}
+
+export interface ShippingWard {
+  WardCode: string
+  DistrictID: number
+  WardName: string
+}
+
+export interface ShippingQuote {
+  shippingFee: number
+  serviceId: number
+  serviceTypeId: number
+  serviceName: string
 }
 
 export interface CheckoutItem {
@@ -161,11 +200,13 @@ export interface Order {
   coupon_id?: number | null
   order_code: string
   discount_amount?: number | string | null
+  shipping_fee?: number | string | null
   total_amount: number | string
   shipping_address: string
   note?: string | null
   order_status: "pending" | "confirmed" | "preparing" | "completed" | "cancelled"
   payment_status: "unpaid" | "paid" | "failed" | "refunded"
+  payment_method?: "cash" | "momo" | "banking" | "zalopay" | "vnpay" | null
   created_at?: string
   updated_at?: string
   user?: {
@@ -189,7 +230,14 @@ export interface Order {
       sku?: string | null
     }
   }>
-  paymentUrl?: string
+  payment?: {
+    id: number
+    method: "cash" | "momo" | "banking" | "zalopay" | "vnpay"
+    status?: "pending" | "success" | "failed" | "refunded"
+    transaction_code?: string | null
+    created_at?: string
+  } | null
+  paymentUrl?: string | null
 }
 
 export interface CheckoutData {
