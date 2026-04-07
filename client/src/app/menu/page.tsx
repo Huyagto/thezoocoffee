@@ -197,7 +197,7 @@ export default function MenuPage() {
                                 name={product.name}
                                 description={product.description || ''}
                                 price={formatCurrency(product.price)}
-                                image={product.image || '/images/placeholder.jpg'}
+                                image={product.image || '/images/store.jpg'}
                                 badge={product.status === 'available' ? undefined : product.status}
                                 priority={index < 4}
                             />

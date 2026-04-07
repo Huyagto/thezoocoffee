@@ -2,11 +2,11 @@ import axiosInstance from "@/lib/axios"
 import type { ApiResponse, Category, Product, ProductsResponse } from "@/types/api"
 
 const PRODUCT_ENDPOINTS = {
-  GET_ALL: "/products",
-  GET_BY_ID: (id: string) => `/products/${id}`,
-  GET_BY_CATEGORY: (category: string) => `/products/category/${category}`,
-  SEARCH: "/products/search",
-  GET_CATEGORIES: "/categories",
+  GET_ALL: "/user/products",
+  GET_BY_ID: (id: string) => `/user/products/${id}`,
+  GET_BY_CATEGORY: (category: string) => `/user/products/category/${category}`,
+  SEARCH: "/user/products",
+  GET_CATEGORIES: "/user/categories",
 }
 
 export interface GetProductsParams {
@@ -70,7 +70,7 @@ export const productService = {
   ): Promise<ProductsResponse> {
     const response = await axiosInstance.get<ApiResponse<ProductsResponse>>(
       PRODUCT_ENDPOINTS.SEARCH,
-      { params: { q: query, ...params } }
+      { params: { search: query, ...params } }
     )
     return getPayload(response.data)
   },

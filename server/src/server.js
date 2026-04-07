@@ -1,11 +1,14 @@
 require('dotenv').config();
 const express = require('express');
 const app = express();
+const http = require('http');
 const bodyParser = require('body-parser');
 const port = process.env.PORT;
-const routes = require('./routes/index.routes');
+const routes = require('./routes');
 const cookieParser = require('cookie-parser');
 const prisma = require('./config/prisma');
+const { initSocketServer } = require('./socket/socket');
+const { ensureStoreLocationsTable } = require('./services/store-location.service');
 
 const cor = require('cors');
 const allowedOrigins = new Set([
@@ -42,11 +45,15 @@ app.use((err, req, res, next) => {
 async function startServer() {
     try {
         await prisma.$connect();
+        await ensureStoreLocationsTable();
         console.log(
             `Prisma connected to ${prisma.databaseMeta.host}:${prisma.databaseMeta.port}/${prisma.databaseMeta.database} as ${prisma.databaseMeta.user}`,
         );
 
-        app.listen(port, () => {
+        const httpServer = http.createServer(app);
+        initSocketServer(httpServer, allowedOrigins);
+
+        httpServer.listen(port, () => {
             console.log(`Example app listening on port ${port}`);
         });
     } catch (error) {

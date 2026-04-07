@@ -23,6 +23,14 @@ type LoginErrors = {
     form?: string;
 };
 
+function getSafeErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error && error.message.trim()) {
+        return error.message.trim();
+    }
+
+    return fallback;
+}
+
 export default function LoginPage() {
     const router = useRouter();
     const { toast } = useToast();
@@ -60,8 +68,8 @@ export default function LoginPage() {
         return nextErrors;
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
 
         const validationErrors = validateForm();
         if (Object.keys(validationErrors).length > 0) {
@@ -87,7 +95,7 @@ export default function LoginPage() {
             router.push('/');
             router.refresh();
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Không thể đăng nhập lúc này.';
+            const message = getSafeErrorMessage(error, 'Không thể đăng nhập lúc này.');
             setErrors({ form: message });
             toast({
                 title: 'Đăng nhập thất bại',
@@ -135,8 +143,8 @@ export default function LoginPage() {
                                         type="email"
                                         placeholder="ban@example.com"
                                         value={email}
-                                        onChange={(e) => {
-                                            setEmail(e.target.value);
+                                        onChange={(event) => {
+                                            setEmail(event.target.value);
                                             setErrors((prev) => ({ ...prev, email: undefined, form: undefined }));
                                         }}
                                         className="pl-10"
@@ -155,8 +163,8 @@ export default function LoginPage() {
                                         type={showPassword ? 'text' : 'password'}
                                         placeholder="Nhập mật khẩu của bạn"
                                         value={password}
-                                        onChange={(e) => {
-                                            setPassword(e.target.value);
+                                        onChange={(event) => {
+                                            setPassword(event.target.value);
                                             setErrors((prev) => ({ ...prev, password: undefined, form: undefined }));
                                         }}
                                         className="pl-10 pr-10"
@@ -164,7 +172,7 @@ export default function LoginPage() {
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
+                                        onClick={() => setShowPassword((currentValue) => !currentValue)}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                     >
                                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -190,7 +198,7 @@ export default function LoginPage() {
 
                             {errors.form ? (
                                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                                    {errors.form}
+                                    {errors.form.trim() || 'Đã có lỗi xảy ra. Vui lòng thử lại.'}
                                 </div>
                             ) : null}
 

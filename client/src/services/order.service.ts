@@ -11,6 +11,7 @@ const ORDER_ENDPOINTS = {
   GET_ORDERS: "/user/orders",
   GET_ORDER_BY_ID: (id: string) => `/user/orders/${id}`,
   CANCEL_ORDER: (id: string) => `/user/orders/${id}/cancel`,
+  CONFIRM_RECEIVED: (id: string) => `/user/orders/${id}/confirm-received`,
 }
 
 export interface GetOrdersParams {
@@ -68,6 +69,13 @@ export const orderService = {
   async cancelOrder(id: string): Promise<Order> {
     const response = await axiosInstance.post<ApiResponse<Order>>(
       ORDER_ENDPOINTS.CANCEL_ORDER(id)
+    )
+    return normalizeOrder(getPayload(response.data) as Order & { users?: Order["user"] })
+  },
+
+  async confirmReceived(id: string): Promise<Order> {
+    const response = await axiosInstance.post<ApiResponse<Order>>(
+      ORDER_ENDPOINTS.CONFIRM_RECEIVED(id)
     )
     return normalizeOrder(getPayload(response.data) as Order & { users?: Order["user"] })
   },

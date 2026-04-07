@@ -78,7 +78,7 @@ export function BestSellers() {
                         >
                             <div className="relative aspect-square w-full shrink-0 overflow-hidden rounded-xl sm:w-48">
                                 <Image
-                                    src={item.image || '/images/default.jpg'}
+                                    src={item.image || '/images/store.jpg'}
                                     alt={item.name}
                                     fill
                                     className="object-cover transition-transform duration-500 group-hover:scale-105"

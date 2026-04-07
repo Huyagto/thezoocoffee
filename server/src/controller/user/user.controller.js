@@ -7,7 +7,7 @@ const { AuthFailureError, BadRequestError, BadGatewayError } = require('../../co
 const { Created, OK } = require('../../core/success.response');
 const { createAccessToken, createRefreshToken } = require('../../auth/checkAuth');
 const redisClient = require('../../config/redis');
-const { clearShopConfigCache } = require('../../services/ghn.service');
+const { upsertPrimaryStoreLocation } = require('../../services/store-location.service');
 const sendMailForgotPassword = require('../../utils/mailForgotPassword');
 const { oAuth2Client, oauth2 } = require('../../utils/loginOAuth2Google');
 const { getFacebookLoginUrl, getFacebookAccessToken, getFacebookUserInfo } = require('../../utils/loginOAuth2Facebook');
@@ -37,16 +37,24 @@ const SAFE_USER_SELECT = {
     email: true,
     phone: true,
     address: true,
-    province_name: true,
-    district_name: true,
-    ward_name: true,
-    to_district_id: true,
-    to_ward_code: true,
+    latitude: true,
+    longitude: true,
     role: true,
     created_at: true,
     updated_at: true,
     facebook_id: true,
     google_id: true,
+};
+
+const PROFILE_USER_SELECT = {
+    id: true,
+    name: true,
+    email: true,
+    role: true,
+    phone: true,
+    address: true,
+    latitude: true,
+    longitude: true,
 };
 
 const normalizeEmail = (email) => email.trim().toLowerCase();
@@ -97,7 +105,7 @@ const sendClientRedirect = (res, path = '/profile') => {
 
 class UserController {
     async register(req, res) {
-        const { name, email, password, phone, address, provinceName, districtName, wardName, toDistrictId, toWardCode } = req.body;
+        const { name, email, password, phone, address, latitude, longitude } = req.body;
         const normalizedEmail = normalizeEmail(email);
 
         const existingUser = await prisma.users.findUnique({
@@ -105,7 +113,7 @@ class UserController {
         });
 
         if (existingUser) {
-            throw new BadRequestError('Email da ton tai');
+            throw new BadRequestError('Email đã tồn tại');
         }
 
         const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -116,28 +124,12 @@ class UserController {
                 email: normalizedEmail,
                 phone: normalizeString(phone),
                 address: normalizeString(address),
-                province_name: normalizeString(provinceName),
-                district_name: normalizeString(districtName),
-                ward_name: normalizeString(wardName),
-                to_district_id: toDistrictId ? Number(toDistrictId) : null,
-                to_ward_code: normalizeString(toWardCode),
+                latitude: latitude !== undefined && latitude !== null ? Number(latitude) : null,
+                longitude: longitude !== undefined && longitude !== null ? Number(longitude) : null,
                 password_hash,
                 role: DEFAULT_ROLE,
             },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                address: true,
-                province_name: true,
-                district_name: true,
-                ward_name: true,
-                to_district_id: true,
-                to_ward_code: true,
-                role: true,
-                created_at: true,
-            },
+            select: PROFILE_USER_SELECT,
         });
 
         const accessToken = createAccessToken({ id: user.id });
@@ -146,7 +138,7 @@ class UserController {
         setAuthCookies(res, accessToken, refreshToken);
 
         new Created({
-            message: 'Dang ky thanh cong',
+            message: 'Đăng ký thành công',
             metadata: user,
         }).send(res);
     }
@@ -159,13 +151,13 @@ class UserController {
         });
 
         if (!existingUser) {
-            throw new AuthFailureError('Email hoac mat khau khong dung');
+            throw new AuthFailureError('Email hoặc mật khẩu không đúng');
         }
 
         const isValidPassword = await bcrypt.compare(password, existingUser.password_hash);
 
         if (!isValidPassword) {
-            throw new AuthFailureError('Email hoac mat khau khong dung');
+            throw new AuthFailureError('Email hoặc mật khẩu không đúng');
         }
 
         const user = {
@@ -181,7 +173,7 @@ class UserController {
         setAuthCookies(res, accessToken, refreshToken);
 
         new OK({
-            message: 'Dang nhap thanh cong',
+            message: 'Đăng nhập thành công',
             metadata: user,
         }).send(res);
     }
@@ -200,7 +192,7 @@ class UserController {
         const { code } = req.query;
 
         if (!code) {
-            throw new BadRequestError('Khong nhan duoc code tu Google');
+            throw new BadRequestError('Không nhận được code từ Google');
         }
 
         const { tokens } = await oAuth2Client.getToken(code);
@@ -220,7 +212,7 @@ class UserController {
                     email,
                     name,
                     google_id: googleId,
-                    role: 'customer',
+                    role: DEFAULT_ROLE,
                 },
                 select: SAFE_USER_SELECT,
             });
@@ -248,7 +240,7 @@ class UserController {
         const { code } = req.query;
 
         if (!code) {
-            throw new BadRequestError('Khong nhan duoc code tu Facebook');
+            throw new BadRequestError('Không nhận được code từ Facebook');
         }
 
         const accessToken = await getFacebookAccessToken(code);
@@ -266,7 +258,7 @@ class UserController {
                     email,
                     name,
                     facebook_id: facebookId,
-                    role: 'customer',
+                    role: DEFAULT_ROLE,
                 },
                 select: SAFE_USER_SELECT,
             });
@@ -289,7 +281,7 @@ class UserController {
         clearAuthCookies(res);
 
         new OK({
-            message: 'Dang xuat thanh cong',
+            message: 'Đăng xuất thành công',
             metadata: true,
         }).send(res);
     }
@@ -299,27 +291,15 @@ class UserController {
             where: {
                 id: req.user?.id,
             },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-                phone: true,
-                address: true,
-                province_name: true,
-                district_name: true,
-                ward_name: true,
-                to_district_id: true,
-                to_ward_code: true,
-            },
+            select: PROFILE_USER_SELECT,
         });
 
         if (!currentUser) {
-            throw new AuthFailureError('Nguoi dung khong ton tai');
+            throw new AuthFailureError('Người dùng không tồn tại');
         }
 
         new OK({
-            message: 'Xac thuc nguoi dung thanh cong',
+            message: 'Xác thực người dùng thành công',
             metadata: currentUser,
         }).send(res);
     }
@@ -328,10 +308,10 @@ class UserController {
         const userId = req.user?.id;
 
         if (!userId) {
-            throw new AuthFailureError('Vui long dang nhap');
+            throw new AuthFailureError('Vui lòng đăng nhập');
         }
 
-        const { name, phone, address, provinceName, districtName, wardName, toDistrictId, toWardCode } = req.body;
+        const { name, phone, address, latitude, longitude } = req.body;
 
         const updatedUser = await prisma.users.update({
             where: { id: userId },
@@ -339,33 +319,25 @@ class UserController {
                 name: name.trim(),
                 phone: phone?.trim() || null,
                 address: address?.trim() || null,
-                province_name: provinceName?.trim() || null,
-                district_name: districtName?.trim() || null,
-                ward_name: wardName?.trim() || null,
-                to_district_id: toDistrictId ? Number(toDistrictId) : null,
-                to_ward_code: toWardCode?.trim() || null,
+                latitude: latitude !== undefined && latitude !== null ? Number(latitude) : null,
+                longitude: longitude !== undefined && longitude !== null ? Number(longitude) : null,
             },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                role: true,
-                phone: true,
-                address: true,
-                province_name: true,
-                district_name: true,
-                ward_name: true,
-                to_district_id: true,
-                to_ward_code: true,
-            },
+            select: PROFILE_USER_SELECT,
         });
 
-        if (updatedUser.role === 'admin') {
-            clearShopConfigCache();
+        if (updatedUser.role === 'admin' && updatedUser.address?.trim()) {
+            await upsertPrimaryStoreLocation({
+                adminUserId: updatedUser.id,
+                name: updatedUser.name,
+                phone: updatedUser.phone,
+                address: updatedUser.address,
+                latitude: updatedUser.latitude,
+                longitude: updatedUser.longitude,
+            });
         }
 
         new OK({
-            message: 'Cap nhat ho so thanh cong',
+            message: 'Cập nhật hồ sơ thành công',
             metadata: updatedUser,
         }).send(res);
     }
@@ -378,7 +350,7 @@ class UserController {
         });
 
         if (!user) {
-            throw new AuthFailureError('Email khong ton tai');
+            throw new AuthFailureError('Email không tồn tại');
         }
 
         const generatedOtp = otp.generate(6, OTP_CONFIG);
@@ -398,11 +370,11 @@ class UserController {
         try {
             await sendMailForgotPassword(email, generatedOtp);
         } catch (error) {
-            throw new BadGatewayError('Khong the gui email');
+            throw new BadGatewayError('Không thể gửi email');
         }
 
         new OK({
-            message: 'Email dat lai mat khau da duoc gui',
+            message: 'Email đặt lại mật khẩu đã được gửi',
         }).send(res);
     }
 
@@ -411,7 +383,7 @@ class UserController {
         const token = req.cookies.tokenVerifyForgotPassword;
 
         if (!token) {
-            throw new AuthFailureError('Token xac minh khong ton tai');
+            throw new AuthFailureError('Token xác minh không tồn tại');
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -419,11 +391,11 @@ class UserController {
         const storedOtp = await redisClient.get(`otp:${email}`);
 
         if (!storedOtp) {
-            throw new AuthFailureError('OTP da het han hoac khong ton tai');
+            throw new AuthFailureError('OTP đã hết hạn hoặc không tồn tại');
         }
 
         if (storedOtp !== inputOtp) {
-            throw new AuthFailureError('OTP khong dung');
+            throw new AuthFailureError('OTP không đúng');
         }
 
         const user = await prisma.users.findUnique({
@@ -431,13 +403,13 @@ class UserController {
         });
 
         if (!user) {
-            throw new AuthFailureError('Email khong ton tai');
+            throw new AuthFailureError('Email không tồn tại');
         }
 
         const isSamePassword = await bcrypt.compare(password, user.password_hash);
 
         if (isSamePassword) {
-            throw new BadRequestError('Mat khau moi khong duoc trung mat khau cu');
+            throw new BadRequestError('Mật khẩu mới không được trùng mật khẩu cũ');
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -452,7 +424,7 @@ class UserController {
         await redisClient.del(`otp:${email}`);
 
         new OK({
-            message: 'Doi mat khau thanh cong',
+            message: 'Đổi mật khẩu thành công',
             metadata: true,
         }).send(res);
     }
@@ -462,7 +434,7 @@ class UserController {
         const userId = req.user?.id;
 
         if (!userId) {
-            throw new AuthFailureError('Vui long dang nhap');
+            throw new AuthFailureError('Vui lòng đăng nhập');
         }
 
         const findUser = await prisma.users.findUnique({
@@ -470,19 +442,19 @@ class UserController {
         });
 
         if (!findUser) {
-            throw new AuthFailureError('Nguoi dung khong ton tai');
+            throw new AuthFailureError('Người dùng không tồn tại');
         }
 
         const isValidOldPassword = await bcrypt.compare(oldPassword, findUser.password_hash);
 
         if (!isValidOldPassword) {
-            throw new BadRequestError('Mat khau cu khong chinh xac');
+            throw new BadRequestError('Mật khẩu cũ không chính xác');
         }
 
         const isSamePassword = await bcrypt.compare(newPassword, findUser.password_hash);
 
         if (isSamePassword) {
-            throw new BadRequestError('Mat khau moi khong duoc trung mat khau cu');
+            throw new BadRequestError('Mật khẩu mới không được trùng mật khẩu cũ');
         }
 
         const generatedOtp = otp.generate(6, OTP_CONFIG);
@@ -490,7 +462,7 @@ class UserController {
         try {
             await sendMailForgotPassword(findUser.email, generatedOtp);
         } catch (error) {
-            throw new BadGatewayError('Khong the gui email');
+            throw new BadGatewayError('Không thể gửi email');
         }
 
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
@@ -505,7 +477,7 @@ class UserController {
         );
 
         new OK({
-            message: 'Ma OTP xac nhan doi mat khau da duoc gui den email cua ban',
+            message: 'Mã OTP xác nhận đổi mật khẩu đã được gửi đến email của bạn',
             metadata: true,
         }).send(res);
     }
@@ -515,7 +487,7 @@ class UserController {
         const userId = req.user?.id;
 
         if (!userId) {
-            throw new AuthFailureError('Vui long dang nhap');
+            throw new AuthFailureError('Vui lòng đăng nhập');
         }
 
         const findUser = await prisma.users.findUnique({
@@ -523,19 +495,19 @@ class UserController {
         });
 
         if (!findUser) {
-            throw new AuthFailureError('Nguoi dung khong ton tai');
+            throw new AuthFailureError('Người dùng không tồn tại');
         }
 
         const storedData = await redisClient.get(`otp:reset-password:${findUser.email}`);
 
         if (!storedData) {
-            throw new AuthFailureError('OTP da het han hoac khong ton tai');
+            throw new AuthFailureError('OTP đã hết hạn hoặc không tồn tại');
         }
 
         const { otp, newPassword } = JSON.parse(storedData);
 
         if (otp !== inputOtp) {
-            throw new AuthFailureError('OTP khong dung');
+            throw new AuthFailureError('OTP không đúng');
         }
 
         await prisma.users.update({
@@ -547,7 +519,7 @@ class UserController {
         await redisClient.del(`otp:reset-password:${findUser.email}`);
 
         new OK({
-            message: 'Doi mat khau thanh cong',
+            message: 'Đổi mật khẩu thành công',
             metadata: true,
         }).send(res);
     }

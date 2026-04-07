@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Coffee, Eye, EyeOff, Lock, Mail, User } from 'lucide-react';
@@ -24,6 +24,14 @@ type RegisterErrors = {
     form?: string;
 };
 
+function getSafeErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error && error.message.trim()) {
+        return error.message.trim();
+    }
+
+    return fallback;
+}
+
 export default function RegisterPage() {
     const router = useRouter();
     const { toast } = useToast();
@@ -37,6 +45,14 @@ export default function RegisterPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const [errors, setErrors] = useState<RegisterErrors>({});
+
+    useEffect(() => {
+        setFullName('');
+        setEmail('');
+        setPassword('');
+        setConfirmPassword('');
+        setErrors({});
+    }, []);
 
     const validateForm = (): RegisterErrors => {
         const nextErrors: RegisterErrors = {};
@@ -55,16 +71,8 @@ export default function RegisterPage() {
             nextErrors.email = 'Email chưa đúng định dạng.';
         }
 
-        if (!password.trim()) {
-            nextErrors.password = 'Vui lòng nhập mật khẩu.';
-        } else if (password.length < 8) {
-            nextErrors.password = 'Mật khẩu phải có ít nhất 8 ký tự.';
-        } else if (!/[A-Za-z]/.test(password)) {
-            nextErrors.password = 'Mật khẩu phải có ít nhất 1 chữ cái.';
-        } else if (!/\d/.test(password)) {
-            nextErrors.password = 'Mật khẩu phải có ít nhất 1 chữ số.';
-        } else if (!PASSWORD_RULE.test(password)) {
-            nextErrors.password = 'Mật khẩu phải gồm cả chữ và số.';
+        if (!password.trim() || !PASSWORD_RULE.test(password)) {
+            nextErrors.password = 'invalid';
         }
 
         if (!confirmPassword.trim()) {
@@ -76,8 +84,8 @@ export default function RegisterPage() {
         return nextErrors;
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
 
         const validationErrors = validateForm();
         if (Object.keys(validationErrors).length > 0) {
@@ -104,7 +112,7 @@ export default function RegisterPage() {
             router.push('/');
             router.refresh();
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Không thể tạo tài khoản lúc này.';
+            const message = getSafeErrorMessage(error, 'Không thể tạo tài khoản lúc này.');
             setErrors({ form: message });
             toast({
                 title: 'Đăng ký thất bại',
@@ -142,18 +150,20 @@ export default function RegisterPage() {
                             </p>
                         </div>
 
-                        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                        <form onSubmit={handleSubmit} noValidate autoComplete="off" className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="fullName">Họ và tên</Label>
                                 <div className="relative">
                                     <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                     <Input
                                         id="fullName"
+                                        name="register_full_name"
                                         type="text"
+                                        autoComplete="off"
                                         placeholder="Nguyễn Văn A"
                                         value={fullName}
-                                        onChange={(e) => {
-                                            setFullName(e.target.value);
+                                        onChange={(event) => {
+                                            setFullName(event.target.value);
                                             setErrors((prev) => ({ ...prev, fullName: undefined, form: undefined }));
                                         }}
                                         className="pl-10"
@@ -169,11 +179,16 @@ export default function RegisterPage() {
                                     <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                     <Input
                                         id="email"
+                                        name="register_email"
                                         type="email"
+                                        autoComplete="off"
+                                        autoCapitalize="none"
+                                        autoCorrect="off"
+                                        spellCheck={false}
                                         placeholder="ban@example.com"
                                         value={email}
-                                        onChange={(e) => {
-                                            setEmail(e.target.value);
+                                        onChange={(event) => {
+                                            setEmail(event.target.value);
                                             setErrors((prev) => ({ ...prev, email: undefined, form: undefined }));
                                         }}
                                         className="pl-10"
@@ -189,11 +204,13 @@ export default function RegisterPage() {
                                     <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                     <Input
                                         id="password"
+                                        name="register_password"
                                         type={showPassword ? 'text' : 'password'}
+                                        autoComplete="new-password"
                                         placeholder="Tạo mật khẩu"
                                         value={password}
-                                        onChange={(e) => {
-                                            setPassword(e.target.value);
+                                        onChange={(event) => {
+                                            setPassword(event.target.value);
                                             setErrors((prev) => ({ ...prev, password: undefined, form: undefined }));
                                         }}
                                         className="pl-10 pr-10"
@@ -201,18 +218,14 @@ export default function RegisterPage() {
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
+                                        onClick={() => setShowPassword((currentValue) => !currentValue)}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                     >
                                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                         <span className="sr-only">{showPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}</span>
                                     </button>
                                 </div>
-                                {errors.password ? (
-                                    <p className="text-sm text-destructive">{errors.password}</p>
-                                ) : (
-                                    <p className="text-xs text-muted-foreground">Mật khẩu cần 8-50 ký tự, có ít nhất 1 chữ và 1 số.</p>
-                                )}
+                                <p className="text-xs text-muted-foreground">Mật khẩu cần 8-50 ký tự, có ít nhất 1 chữ và 1 số.</p>
                             </div>
 
                             <div className="space-y-2">
@@ -221,11 +234,13 @@ export default function RegisterPage() {
                                     <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                     <Input
                                         id="confirmPassword"
+                                        name="register_confirm_password"
                                         type={showConfirmPassword ? 'text' : 'password'}
+                                        autoComplete="new-password"
                                         placeholder="Nhập lại mật khẩu"
                                         value={confirmPassword}
-                                        onChange={(e) => {
-                                            setConfirmPassword(e.target.value);
+                                        onChange={(event) => {
+                                            setConfirmPassword(event.target.value);
                                             setErrors((prev) => ({ ...prev, confirmPassword: undefined, form: undefined }));
                                         }}
                                         className="pl-10 pr-10"
@@ -233,28 +248,23 @@ export default function RegisterPage() {
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        onClick={() => setShowConfirmPassword((currentValue) => !currentValue)}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                     >
                                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                        <span className="sr-only">
-                                            {showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
-                                        </span>
+                                        <span className="sr-only">{showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}</span>
                                     </button>
                                 </div>
-                                {errors.confirmPassword ? (
-                                    <p className="text-sm text-destructive">{errors.confirmPassword}</p>
-                                ) : null}
+                                {errors.confirmPassword ? <p className="text-sm text-destructive">{errors.confirmPassword}</p> : null}
                             </div>
 
                             <p className="text-xs text-muted-foreground">
-                                Khi tạo tài khoản, bạn đồng ý với điều khoản sử dụng và chính sách bảo mật của
-                                TheZooCoffee.
+                                Khi tạo tài khoản, bạn đồng ý với điều khoản sử dụng và chính sách bảo mật của TheZooCoffee.
                             </p>
 
                             {errors.form ? (
                                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                                    {errors.form}
+                                    {errors.form.trim() || 'Đã có lỗi xảy ra. Vui lòng thử lại.'}
                                 </div>
                             ) : null}
 

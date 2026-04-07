@@ -195,41 +195,7 @@ const COUPON_ITEMS = [
     },
 ];
 
-const SAMPLE_ORDER_DEFINITIONS = [
-    {
-        orderCode: 'SEED-ORDER-001',
-        customerEmail: 'customer@thezoocoffee.vn',
-        shippingAddress: 'Nguyễn Văn A | 0900000001 | customer@thezoocoffee.vn | 12 Nguyễn Huệ, Quận 1, TP.HCM',
-        note: 'Đơn hàng mẫu cho thống kê bán chạy',
-        items: [
-            { productSku: 'CAP001', quantity: 3 },
-            { productSku: 'MOC001', quantity: 2 },
-        ],
-    },
-    {
-        orderCode: 'SEED-ORDER-002',
-        customerEmail: 'customer@thezoocoffee.vn',
-        shippingAddress: 'Nguyễn Văn A | 0900000001 | customer@thezoocoffee.vn | 12 Nguyễn Huệ, Quận 1, TP.HCM',
-        note: 'Đơn hàng mẫu cho thống kê bán chạy',
-        items: [
-            { productSku: 'CAP001', quantity: 2 },
-            { productSku: 'MTL001', quantity: 1 },
-        ],
-    },
-    {
-        orderCode: 'SEED-ORDER-003',
-        customerEmail: 'customer@thezoocoffee.vn',
-        shippingAddress: 'Nguyễn Văn A | 0900000001 | customer@thezoocoffee.vn | 12 Nguyễn Huệ, Quận 1, TP.HCM',
-        note: 'Đơn hàng mẫu cho thống kê bán chạy',
-        items: [
-            { productSku: 'ESP001', quantity: 4 },
-            { productSku: 'MOC001', quantity: 1 },
-        ],
-    },
-];
-
 const PRODUCT_IMAGE_DIR = path.resolve(__dirname, '../../client/public/images');
-const SHIPPING_FEE = 30000;
 
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -350,91 +316,16 @@ async function upsertCoupon(item) {
     });
 }
 
-async function seedSampleOrders(productMap) {
-    const users = await prisma.users.findMany({
-        where: {
-            email: {
-                in: [...new Set(SAMPLE_ORDER_DEFINITIONS.map((item) => item.customerEmail))],
-            },
-        },
-        select: {
-            id: true,
-            email: true,
-        },
-    });
-
-    const userMap = new Map(users.map((user) => [user.email, user]));
-    const orderCodes = SAMPLE_ORDER_DEFINITIONS.map((order) => order.orderCode);
-
-    await prisma.orders.deleteMany({
+async function clearSeedOrders() {
+    const deleted = await prisma.orders.deleteMany({
         where: {
             order_code: {
-                in: orderCodes,
+                startsWith: 'SEED-ORDER-',
             },
         },
     });
 
-    for (const orderDefinition of SAMPLE_ORDER_DEFINITIONS) {
-        const customer = userMap.get(orderDefinition.customerEmail);
-
-        if (!customer) {
-            throw new Error(`Không tìm thấy người dùng ${orderDefinition.customerEmail} để seed đơn hàng`);
-        }
-
-        const normalizedItems = orderDefinition.items.map((item) => {
-            const product = productMap[item.productSku];
-
-            if (!product) {
-                throw new Error(`Không tìm thấy sản phẩm có SKU ${item.productSku} để seed đơn hàng`);
-            }
-
-            const unitPrice = Number(product.price || 0);
-
-            return {
-                product_id: product.id,
-                quantity: item.quantity,
-                unit_price: unitPrice,
-                subtotal: unitPrice * item.quantity,
-            };
-        });
-
-        const totalAmount =
-            normalizedItems.reduce((sum, item) => sum + item.subtotal, 0) + SHIPPING_FEE;
-
-        const order = await prisma.orders.create({
-            data: {
-                user_id: customer.id,
-                order_code: orderDefinition.orderCode,
-                discount_amount: 0,
-                total_amount: totalAmount,
-                shipping_address: orderDefinition.shippingAddress,
-                note: orderDefinition.note,
-                order_status: 'completed',
-                payment_status: 'paid',
-            },
-        });
-
-        await prisma.order_items.createMany({
-            data: normalizedItems.map((item) => ({
-                ...item,
-                order_id: order.id,
-            })),
-        });
-
-        await prisma.payments.create({
-            data: {
-                order_id: order.id,
-                amount: totalAmount,
-                method: 'cash',
-                status: 'success',
-                transaction_code: `${orderDefinition.orderCode}-PAY`,
-                paid_at: new Date(),
-            },
-        });
-
-        console.log(`  - Đã seed đơn hàng mẫu: ${orderDefinition.orderCode}`);
-        await sleep(100);
-    }
+    console.log(`  - Da don ${deleted.count} don hang seed cu`);
 }
 
 async function main() {
@@ -543,9 +434,8 @@ async function main() {
         console.log(`  - Đã seed coupon: ${record.code}`);
         await sleep(100);
     }
-
-    console.log('Đang seed đơn hàng mẫu...');
-    await seedSampleOrders(productMap);
+    console.log('Dang don don hang seed cu...');
+    await clearSeedOrders();
 
     console.log('Seed hoàn tất thành công.');
 }

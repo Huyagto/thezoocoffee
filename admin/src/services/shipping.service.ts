@@ -1,40 +1,36 @@
 import axiosInstance from "@/lib/axios"
-import type {
-  ApiResponse,
-  ShippingDistrict,
-  ShippingProvince,
-  ShippingWard,
-} from "@/types/api"
+import type { ApiResponse, StoreLocation } from "@/types/api"
 
 const getPayload = <T>(response: ApiResponse<T>): T =>
   response.metadata ?? response.data!
 
 const shippingService = {
-  async getProvinces(): Promise<ShippingProvince[]> {
-    const response = await axiosInstance.get<ApiResponse<ShippingProvince[]>>(
-      "/shipping/provinces"
+  async getStoreLocations(): Promise<StoreLocation[]> {
+    const response = await axiosInstance.get<ApiResponse<StoreLocation[]>>(
+      "/admin/store-locations"
     )
 
     return getPayload(response.data)
   },
 
-  async getDistricts(provinceId: number): Promise<ShippingDistrict[]> {
-    const response = await axiosInstance.get<ApiResponse<ShippingDistrict[]>>(
-      "/shipping/districts",
-      {
-        params: { provinceId },
-      }
+  async createStoreLocation(data: {
+    name: string
+    phone?: string
+    address: string
+    latitude?: number | null
+    longitude?: number | null
+  }): Promise<StoreLocation> {
+    const response = await axiosInstance.post<ApiResponse<StoreLocation>>(
+      "/admin/store-locations",
+      data
     )
 
     return getPayload(response.data)
   },
 
-  async getWards(districtId: number): Promise<ShippingWard[]> {
-    const response = await axiosInstance.get<ApiResponse<ShippingWard[]>>(
-      "/shipping/wards",
-      {
-        params: { districtId },
-      }
+  async setPrimaryStoreLocation(id: number): Promise<StoreLocation> {
+    const response = await axiosInstance.patch<ApiResponse<StoreLocation>>(
+      `/admin/store-locations/${id}/primary`
     )
 
     return getPayload(response.data)

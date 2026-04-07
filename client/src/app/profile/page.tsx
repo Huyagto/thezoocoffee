@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -21,6 +21,7 @@ import { Footer } from '@/components/footer';
 import { Navbar } from '@/components/navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { LocationSearch } from '@/components/location-search';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -28,21 +29,15 @@ import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
+import { getClientSocket, SOCKET_EVENTS } from '@/lib/socket';
+import { type OpenStreetMapLocationSelection } from '@/lib/openstreetmap';
 import authService from '@/services/auth.service';
+import notificationService from '@/services/notification.service';
 import orderService from '@/services/order.service';
-import shippingService from '@/services/shipping.service';
-import type { Order, ShippingDistrict, ShippingProvince, ShippingWard } from '@/types/api';
+import type { Notification, Order } from '@/types/api';
 
 const OTP_DURATION_SECONDS = 5 * 60;
 const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d\S]{8,50}$/;
-
-type WardOption = ShippingWard & {
-    districtName?: string;
-};
-
-function getWardOptionValue(ward: Pick<ShippingWard, 'DistrictID' | 'WardCode'>) {
-    return `${ward.DistrictID}:${ward.WardCode}`;
-}
 
 function formatCurrency(amount: number | string | null | undefined) {
     const numericAmount = Number(amount ?? 0);
@@ -54,6 +49,7 @@ function mapOrderStatus(status?: string) {
     if (status === 'pending') return 'Chờ xác nhận';
     if (status === 'confirmed') return 'Đã xác nhận';
     if (status === 'preparing') return 'Đang chuẩn bị';
+    if (status === 'shipping') return 'Đang giao vận';
     if (status === 'completed') return 'Hoàn thành';
     if (status === 'cancelled') return 'Đã hủy';
     return 'Đang cập nhật';
@@ -67,15 +63,58 @@ function mapPaymentStatus(status?: string) {
     return 'Đang cập nhật';
 }
 
+const ORDER_GROUPS: Array<{
+    key: 'pending' | 'confirmed' | 'preparing' | 'shipping' | 'completed';
+    title: string;
+    description: string;
+}> = [
+    {
+        key: 'pending',
+        title: 'Đơn chờ xác nhận',
+        description: 'Các đơn đã gửi và đang chờ cửa hàng xác nhận.',
+    },
+    {
+        key: 'confirmed',
+        title: 'Đơn đã xác nhận',
+        description: 'Các đơn đã được cửa hàng tiếp nhận.',
+    },
+    {
+        key: 'preparing',
+        title: 'Đơn đang chuẩn bị',
+        description: 'Các đơn đang được cửa hàng chuẩn bị món.',
+    },
+    {
+        key: 'shipping',
+        title: 'Đơn đang vận chuyển',
+        description: 'Các đơn đang được giao tới bạn.',
+    },
+    {
+        key: 'completed',
+        title: 'Đơn hoàn thành',
+        description: 'Các đơn đã hoàn tất sau khi bạn xác nhận đã nhận hàng.',
+    },
+];
+
+type OrderGroupKey = (typeof ORDER_GROUPS)[number]['key'];
+
 function ProfileField({ icon: Icon, label, value }: { icon: typeof User; label: string; value?: string }) {
+    const displayValue = value?.trim() ? value : 'Chưa cập nhật';
+    const isLongValue = displayValue.length > 28;
+
     return (
-        <div className="flex items-start gap-3 rounded-xl border border-border bg-background p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
+        <div className="flex min-w-0 w-full overflow-hidden items-start gap-3 rounded-2xl border border-border bg-background p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary">
                 <Icon className="h-4 w-4 text-primary" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-sm text-muted-foreground">{label}</p>
-                <p className="mt-1 font-medium text-foreground">{value?.trim() ? value : 'Chưa cập nhật'}</p>
+                <p
+                    className={`font-medium text-foreground ${
+                        isLongValue ? 'text-sm leading-6 break-all' : 'text-base break-words'
+                    }`}
+                >
+                    {displayValue}
+                </p>
             </div>
         </div>
     );
@@ -86,10 +125,13 @@ export default function ProfilePage() {
     const { user: currentUser, isLoading, logout, refreshUser, setUser } = useAuth();
     const { toast } = useToast();
     const [activeSection, setActiveSection] = useState<'orders' | 'profile'>('orders');
+    const [selectedOrderGroup, setSelectedOrderGroup] = useState<OrderGroupKey>('pending');
+    const [orderPage, setOrderPage] = useState(1);
+    const [expandedOrderId, setExpandedOrderId] = useState<number | string | null>(null);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [isLoadingOrders, setIsLoadingOrders] = useState(false);
-    const [isLoadingAddressData, setIsLoadingAddressData] = useState(false);
+    const [confirmingOrderId, setConfirmingOrderId] = useState<number | string | null>(null);
     const [isProfileFormOpen, setIsProfileFormOpen] = useState(false);
     const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
     const [isRequestingOtp, setIsRequestingOtp] = useState(false);
@@ -97,27 +139,39 @@ export default function ProfilePage() {
     const [otpRequested, setOtpRequested] = useState(false);
     const [otpTimeLeft, setOtpTimeLeft] = useState(0);
     const [orders, setOrders] = useState<Order[]>([]);
-    const [provinces, setProvinces] = useState<ShippingProvince[]>([]);
-    const [districts, setDistricts] = useState<ShippingDistrict[]>([]);
-    const [wards, setWards] = useState<WardOption[]>([]);
-    const [selectedProvinceId, setSelectedProvinceId] = useState<number | ''>('');
-    const [selectedWardValue, setSelectedWardValue] = useState('');
-    const didHydrateProvince = useRef(false);
-    const didHydrateWard = useRef(false);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [selectedGooglePlace, setSelectedGooglePlace] = useState<OpenStreetMapLocationSelection | null>(null);
+    const lastNotifiedNotificationId = useRef<number | null>(null);
+    const hasSyncedTargetOrderRef = useRef(false);
     const [profileForm, setProfileForm] = useState({ name: '', phone: '', address: '' });
     const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '', otp: '' });
     const [showPasswords, setShowPasswords] = useState({ oldPassword: false, newPassword: false, confirmPassword: false });
+    const [targetOrderId, setTargetOrderId] = useState('');
+    const ordersPerPage = 4;
 
     const missingProfileFields = [
         !currentUser?.name?.trim() ? 'Họ và tên' : null,
         !currentUser?.phone?.trim() ? 'Số điện thoại' : null,
         !currentUser?.address?.trim() ? 'Địa chỉ' : null,
-        !currentUser?.province_name?.trim() || !currentUser?.ward_name?.trim() ? 'Tỉnh/Phường xã' : null,
+        currentUser?.latitude == null || currentUser?.longitude == null ? 'Vị trí trên bản đồ' : null,
     ].filter(Boolean) as string[];
 
-    const selectedProvince = provinces.find((province) => province.ProvinceID === Number(selectedProvinceId));
-    const selectedWard = wards.find((ward) => getWardOptionValue(ward) === selectedWardValue);
+    const currentOrderGroup = ORDER_GROUPS.find((group) => group.key === selectedOrderGroup) || ORDER_GROUPS[0];
+    const filteredOrders = orders.filter((order) => order.order_status === currentOrderGroup.key);
+    const totalOrderPages = Math.max(1, Math.ceil(filteredOrders.length / ordersPerPage));
+    const paginatedOrders = filteredOrders.slice((orderPage - 1) * ordersPerPage, orderPage * ordersPerPage);
+
     const canResendOtp = otpRequested && otpTimeLeft === 0 && !isRequestingOtp && !isVerifyingOtp;
+    const isPhoneInvalid =
+        profileForm.phone.trim().length > 0 && !/^(0|\+84)[0-9]{9}$/.test(profileForm.phone.trim());
+
+    const handleGooglePlaceSelect = useCallback((place: OpenStreetMapLocationSelection) => {
+        setSelectedGooglePlace(place);
+        setProfileForm((prev) => ({
+            ...prev,
+            address: place.addressLine || place.formattedAddress,
+        }));
+    }, []);
 
     useEffect(() => {
         let isMounted = true;
@@ -142,115 +196,158 @@ export default function ProfilePage() {
             phone: currentUser.phone ?? '',
             address: currentUser.address ?? '',
         });
-        setSelectedWardValue('');
-        didHydrateProvince.current = false;
-        didHydrateWard.current = false;
+        setSelectedGooglePlace(
+            currentUser.address
+                ? {
+                      placeId: null,
+                      formattedAddress: currentUser.address || '',
+                      addressLine: currentUser.address || '',
+                      provinceName: '',
+                      districtName: '',
+                      wardName: '',
+                      latitude: currentUser.latitude ?? null,
+                      longitude: currentUser.longitude ?? null,
+                  }
+                : null
+        );
     }, [currentUser]);
 
-    useEffect(() => {
-        let isMounted = true;
-        setIsLoadingAddressData(true);
-        shippingService
-            .getProvinces()
-            .then((data) => {
-                if (!isMounted) return;
-                setProvinces(data);
-                if (currentUser?.province_name && !didHydrateProvince.current) {
-                    const matchedProvince = data.find((province) => province.ProvinceName === currentUser.province_name);
-                    if (matchedProvince) {
-                        setSelectedProvinceId(matchedProvince.ProvinceID);
-                        didHydrateProvince.current = true;
-                    }
-                }
-            })
-            .catch(() => {
-                if (isMounted) setProvinces([]);
-            })
-            .finally(() => {
-                if (isMounted) setIsLoadingAddressData(false);
-            });
-        return () => {
-            isMounted = false;
-        };
-    }, [currentUser?.province_name]);
-
-    useEffect(() => {
-        if (!selectedProvinceId) {
-            setDistricts([]);
-            setWards([]);
-            setSelectedWardValue('');
-            return;
-        }
-
-        let isMounted = true;
-        setIsLoadingAddressData(true);
-        shippingService
-            .getDistricts(Number(selectedProvinceId))
-            .then(async (data) => {
-                if (!isMounted) return;
-                setDistricts(data);
-                const wardResults = await Promise.allSettled(
-                    data.map(async (district) => {
-                        const districtWards = await shippingService.getWards(district.DistrictID);
-                        return districtWards.map((ward) => ({ ...ward, districtName: district.DistrictName }));
-                    }),
-                );
-                if (!isMounted) return;
-                const mergedWards = wardResults
-                    .reduce<WardOption[]>((accumulator, result) => {
-                        if (result.status === 'fulfilled') {
-                            accumulator.push(...result.value);
-                        }
-                        return accumulator;
-                    }, [])
-                    .sort((a, b) => a.WardName.localeCompare(b.WardName, 'vi'));
-                setWards(mergedWards);
-                if (currentUser?.to_ward_code && !didHydrateWard.current) {
-                    const matchedWard = mergedWards.find(
-                        (ward) => ward.WardCode === currentUser.to_ward_code && ward.DistrictID === currentUser.to_district_id,
-                    );
-                    if (matchedWard) {
-                        setSelectedWardValue(getWardOptionValue(matchedWard));
-                        didHydrateWard.current = true;
-                    }
-                }
-            })
-            .catch(() => {
-                if (isMounted) {
-                    setDistricts([]);
-                    setWards([]);
-                }
-            })
-            .finally(() => {
-                if (isMounted) setIsLoadingAddressData(false);
-            });
-        return () => {
-            isMounted = false;
-        };
-    }, [currentUser?.to_district_id, currentUser?.to_ward_code, selectedProvinceId]);
-
-    useEffect(() => {
+    const loadOrders = useCallback(async () => {
         if (!currentUser) {
             setOrders([]);
             return;
         }
-        let isMounted = true;
+
         setIsLoadingOrders(true);
-        orderService
-            .getOrders()
-            .then((response) => {
-                if (isMounted) setOrders(response.orders ?? []);
-            })
-            .catch(() => {
-                if (isMounted) setOrders([]);
-            })
-            .finally(() => {
-                if (isMounted) setIsLoadingOrders(false);
-            });
-        return () => {
-            isMounted = false;
-        };
+        try {
+            const response = await orderService.getOrders();
+            setOrders(response.orders ?? []);
+        } catch {
+            setOrders([]);
+        } finally {
+            setIsLoadingOrders(false);
+        }
     }, [currentUser]);
+
+    useEffect(() => {
+        void loadOrders();
+    }, [loadOrders]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const section = params.get('section');
+        const orderId = params.get('orderId') || '';
+
+        if (section === 'orders' || section === 'profile') {
+            setActiveSection(section);
+        }
+
+        setTargetOrderId(orderId);
+        hasSyncedTargetOrderRef.current = false;
+    }, []);
+
+    useEffect(() => {
+        if (!targetOrderId || activeSection !== 'orders' || orders.length === 0) {
+            return;
+        }
+
+        const matchedOrder = orders.find((order) => String(order.id) === String(targetOrderId));
+        if (!matchedOrder) {
+            return;
+        }
+
+        const matchedGroup = ORDER_GROUPS.find((group) => group.key === matchedOrder.order_status);
+        if (!hasSyncedTargetOrderRef.current && matchedGroup && selectedOrderGroup !== matchedGroup.key) {
+            hasSyncedTargetOrderRef.current = true;
+            setSelectedOrderGroup(matchedGroup.key);
+            return;
+        }
+
+        hasSyncedTargetOrderRef.current = true;
+        setExpandedOrderId(matchedOrder.id);
+
+        const element = document.getElementById(`order-card-${matchedOrder.id}`);
+        if (!element) {
+            return;
+        }
+
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, [activeSection, orders, selectedOrderGroup, targetOrderId]);
+
+    useEffect(() => {
+        setOrderPage(1);
+        setExpandedOrderId(null);
+    }, [selectedOrderGroup]);
+
+    useEffect(() => {
+        if (orderPage > totalOrderPages) {
+            setOrderPage(totalOrderPages);
+        }
+    }, [orderPage, totalOrderPages]);
+
+    const loadNotifications = useCallback(async () => {
+        if (!currentUser) {
+            setNotifications([]);
+            return;
+        }
+
+        try {
+            const data = await notificationService.getMyNotifications();
+            setNotifications(data);
+
+            const unreadNotifications = data.filter((notification) => !notification.is_read);
+            if (unreadNotifications.length > 0) {
+                const latestNotification = unreadNotifications[0];
+                if (lastNotifiedNotificationId.current !== latestNotification.id) {
+                    lastNotifiedNotificationId.current = latestNotification.id;
+                    toast({
+                        title: latestNotification.title,
+                        description: latestNotification.message,
+                    });
+                }
+            }
+        } catch {
+            setNotifications([]);
+        }
+    }, [currentUser, toast]);
+
+    useEffect(() => {
+        void loadNotifications();
+    }, [loadNotifications]);
+
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                void loadOrders();
+                void loadNotifications();
+            }
+        };
+
+        const socket = getClientSocket();
+        const handleRealtimeUpdate = () => {
+            void loadOrders();
+            void loadNotifications();
+        };
+
+        socket.connect();
+        socket.on(SOCKET_EVENTS.USER_ORDER_STATUS_UPDATED, handleRealtimeUpdate);
+        socket.on(SOCKET_EVENTS.USER_NOTIFICATION_CREATED, handleRealtimeUpdate);
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            socket.off(SOCKET_EVENTS.USER_ORDER_STATUS_UPDATED, handleRealtimeUpdate);
+            socket.off(SOCKET_EVENTS.USER_NOTIFICATION_CREATED, handleRealtimeUpdate);
+            socket.disconnect();
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [currentUser, loadNotifications, loadOrders]);
 
     useEffect(() => {
         if (!otpRequested || otpTimeLeft <= 0) {
@@ -313,14 +410,14 @@ export default function ProfilePage() {
     const validateProfileForm = () => {
         if (!profileForm.name.trim()) return 'Vui lòng nhập họ và tên.';
         if (profileForm.name.trim().length < 2) return 'Họ và tên phải có ít nhất 2 ký tự.';
-        if (profileForm.phone.trim() && !/^(0|\+84)[0-9]{9}$/.test(profileForm.phone.trim())) {
-            return 'Số điện thoại chưa đúng định dạng Việt Nam.';
+        if (isPhoneInvalid) {
+            return '__phone_invalid__';
         }
         if (profileForm.address.trim() && profileForm.address.trim().length < 5) {
             return 'Địa chỉ cần chi tiết hơn.';
         }
-        if (!selectedProvince || !selectedWard) {
-            return 'Vui lòng chọn đầy đủ tỉnh/thành và phường/xã.';
+        if (!selectedGooglePlace?.latitude || !selectedGooglePlace?.longitude) {
+            return 'Vui lòng chọn địa điểm từ bản đồ để lưu tọa độ giao hàng.';
         }
         return null;
     };
@@ -328,7 +425,9 @@ export default function ProfilePage() {
     const handleSaveProfile = async () => {
         const validationError = validateProfileForm();
         if (validationError) {
-            toast({ title: 'Thông tin chưa hợp lệ', description: validationError, variant: 'destructive' });
+            if (validationError !== '__phone_invalid__') {
+                toast({ title: 'Thông tin chưa hợp lệ', description: validationError, variant: 'destructive' });
+            }
             return;
         }
         setIsSavingProfile(true);
@@ -337,11 +436,8 @@ export default function ProfilePage() {
                 name: profileForm.name.trim(),
                 phone: profileForm.phone.trim() || undefined,
                 address: profileForm.address.trim() || undefined,
-                provinceName: selectedProvince?.ProvinceName || undefined,
-                districtName: selectedWard?.districtName || undefined,
-                wardName: selectedWard?.WardName || undefined,
-                toDistrictId: selectedWard?.DistrictID || undefined,
-                toWardCode: selectedWard?.WardCode || undefined,
+                latitude: selectedGooglePlace?.latitude || undefined,
+                longitude: selectedGooglePlace?.longitude || undefined,
             });
             setProfileForm({
                 name: updatedUser.name ?? '',
@@ -431,6 +527,37 @@ export default function ProfilePage() {
         }
     };
 
+    const handleConfirmReceivedOrder = async (orderId: number | string) => {
+        setConfirmingOrderId(orderId);
+        try {
+            const updatedOrder = await orderService.confirmReceived(String(orderId));
+            setOrders((prev) => prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order)));
+            toast({
+                title: 'Đã xác nhận nhận hàng',
+                description: 'Đơn hàng của bạn đã được chuyển sang trạng thái hoàn thành.',
+            });
+        } catch (error) {
+            toast({
+                title: 'Không thể xác nhận đơn hàng',
+                description: error instanceof Error ? error.message : 'Đã có lỗi xảy ra khi xác nhận nhận hàng.',
+                variant: 'destructive',
+            });
+        } finally {
+            setConfirmingOrderId(null);
+        }
+    };
+
+    const handleMarkNotificationAsRead = async (notificationId: number) => {
+        try {
+            const updatedNotification = await notificationService.markAsRead(notificationId);
+            setNotifications((prev) =>
+                prev.map((notification) => (notification.id === updatedNotification.id ? updatedNotification : notification)),
+            );
+        } catch {
+            // Keep the page quiet for this secondary action.
+        }
+    };
+
     return (
         <div className="min-h-screen bg-background">
             <Navbar />
@@ -495,42 +622,151 @@ export default function ProfilePage() {
                                             Đang tải đơn hàng...
                                         </div>
                                     ) : orders.length > 0 ? (
-                                        <div className="grid gap-4 lg:grid-cols-2">
-                                            {orders.map((order, index) => (
-                                                <div
-                                                    key={order.id}
-                                                    className={`rounded-2xl border p-5 transition-colors hover:border-primary/40 ${index === 0 ? 'border-primary/30 bg-primary/5 lg:col-span-2' : 'border-border bg-background'}`}
-                                                >
-                                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                                                        <div>
-                                                            <div className="flex flex-wrap items-center gap-2">
-                                                                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                                                                    {index === 0 ? 'Mới nhất' : `Đơn ${index + 1}`}
-                                                                </span>
-                                                                <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
-                                                                    {mapOrderStatus(order.order_status)}
-                                                                </span>
-                                                            </div>
-                                                            <p className="mt-3 font-semibold text-foreground">{order.order_code}</p>
-                                                            <p className="mt-1 text-sm text-muted-foreground">
-                                                                {order.created_at ? new Date(order.created_at).toLocaleString('vi-VN') : 'Đang cập nhật thời gian'}
-                                                            </p>
-                                                        </div>
-                                                        <div className="text-sm sm:text-right">
-                                                            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Tổng thanh toán</p>
-                                                            <p className="mt-2 text-xl font-semibold text-foreground">{formatCurrency(order.total_amount)}</p>
-                                                            <p className="mt-1 text-muted-foreground">{mapPaymentStatus(order.payment_status)}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-4 rounded-2xl bg-muted/40 p-4">
-                                                        <p className="text-sm font-medium text-foreground">Địa chỉ giao hàng</p>
-                                                        <p className="mt-1 text-sm text-muted-foreground">{order.shipping_address}</p>
-                                                        <p className="mt-3 text-sm text-muted-foreground">
-                                                            Thanh toán: {order.payment_method ?? order.payment?.method ?? 'Đang cập nhật'}
-                                                        </p>
-                                                    </div>
+                                        <div className="space-y-6">
+                                            <div className="space-y-4 rounded-2xl border border-border bg-background p-4">
+                                                <div>
+                                                    <h3 className="text-lg font-semibold text-foreground">Chọn loại đơn hàng</h3>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Chọn trạng thái bạn muốn xem, chỉ nhóm đó sẽ được hiển thị.
+                                                    </p>
                                                 </div>
-                                            ))}
+                                                <div className="flex flex-wrap gap-2">
+                                                    {ORDER_GROUPS.map((group) => {
+                                                        const groupedCount = orders.filter((order) => order.order_status === group.key).length;
+                                                        const isActive = selectedOrderGroup === group.key;
+
+                                                        return (
+                                                            <button
+                                                                key={group.key}
+                                                                type="button"
+                                                                onClick={() => setSelectedOrderGroup(group.key)}
+                                                                className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                                                                    isActive
+                                                                        ? 'border-primary bg-primary text-primary-foreground'
+                                                                        : 'border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted'
+                                                                }`}
+                                                            >
+                                                                {group.title} ({groupedCount})
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            {filteredOrders.length === 0 ? (
+                                                <div className="rounded-2xl border border-dashed border-border bg-background p-8 text-center">
+                                                    <p className="font-medium text-foreground">Chưa có đơn trong nhóm này</p>
+                                                    <p className="mt-2 text-sm text-muted-foreground">{currentOrderGroup.description}</p>
+                                                </div>
+                                            ) : (
+                                                <section className="space-y-4">
+                                                    <div className="flex flex-col gap-2 rounded-2xl border border-border bg-background px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
+                                                        <div>
+                                                            <h3 className="text-lg font-semibold text-foreground">{currentOrderGroup.title}</h3>
+                                                            <p className="text-sm text-muted-foreground">{currentOrderGroup.description}</p>
+                                                        </div>
+                                                        <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-muted-foreground">
+                                                            {filteredOrders.length} đơn
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="grid gap-4 lg:grid-cols-2">
+                                                            {paginatedOrders.map((order, index) => {
+                                                                const displayOrderNumber = (orderPage - 1) * ordersPerPage + index + 1;
+                                                                const isExpanded = String(expandedOrderId) === String(order.id);
+
+                                                                return (
+                                                                <div
+                                                                    key={order.id}
+                                                                    id={`order-card-${order.id}`}
+                                                                    className={`rounded-2xl border p-5 transition-colors hover:border-primary/40 ${String(order.id) === String(targetOrderId) ? 'border-primary ring-2 ring-primary/30' : 'border-border bg-background'}`}
+                                                                >
+                                                                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                                                        <div>
+                                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                                                                    {displayOrderNumber === 1 ? 'Đơn mới nhất' : `Đơn ${displayOrderNumber}`}
+                                                                                </span>
+                                                                                <span className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
+                                                                                    {mapOrderStatus(order.order_status)}
+                                                                                </span>
+                                                                            </div>
+                                                                            <p className="mt-3 font-semibold text-foreground">{order.order_code}</p>
+                                                                            <p className="mt-1 text-sm text-muted-foreground">
+                                                                                {order.created_at ? new Date(order.created_at).toLocaleString('vi-VN') : 'Đang cập nhật thời gian'}
+                                                                            </p>
+                                                                        </div>
+                                                                        <div className="text-sm sm:text-right">
+                                                                            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Tổng thanh toán</p>
+                                                                            <p className="mt-2 text-xl font-semibold text-foreground">{formatCurrency(order.total_amount)}</p>
+                                                                            <p className="mt-1 text-muted-foreground">{mapPaymentStatus(order.payment_status)}</p>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="outline"
+                                                                                className="mt-3"
+                                                                                onClick={() =>
+                                                                                    setExpandedOrderId((current) =>
+                                                                                        String(current) === String(order.id) ? null : order.id
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                {isExpanded ? 'Ẩn chi tiết' : 'Xem chi tiết'}
+                                                                            </Button>
+                                                                        </div>
+                                                                    </div>
+                                                                    {isExpanded ? (
+                                                                    <div className="mt-4 rounded-2xl bg-muted/40 p-4">
+                                                                        <p className="text-sm font-medium text-foreground">Địa chỉ giao hàng</p>
+                                                                        <p className="mt-1 text-sm text-muted-foreground">{order.shipping_address}</p>
+                                                                        <p className="mt-3 text-sm text-muted-foreground">
+                                                                            Thanh toán: {order.payment_method ?? order.payment?.method ?? 'Đang cập nhật'}
+                                                                        </p>
+                                                                        {order.order_status === 'shipping' ? (
+                                                                            <div className="mt-4 flex flex-wrap items-center gap-3">
+                                                                                <Button
+                                                                                    onClick={() => handleConfirmReceivedOrder(order.id)}
+                                                                                    disabled={confirmingOrderId === order.id}
+                                                                                >
+                                                                                    {confirmingOrderId === order.id ? 'Đang xác nhận...' : 'Xác nhận đã nhận hàng'}
+                                                                                </Button>
+                                                                                <p className="text-sm text-muted-foreground">
+                                                                                    Nhấn nút này khi bạn đã nhận được hàng để hoàn tất đơn.
+                                                                                </p>
+                                                                            </div>
+                                                                        ) : null}
+                                                                    </div>
+                                                                    ) : null}
+                                                                </div>
+                                                            )})}
+                                                    </div>
+
+                                                    {totalOrderPages > 1 ? (
+                                                        <div className="flex flex-col gap-3 rounded-2xl border border-border bg-background px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Trang {orderPage}/{totalOrderPages}
+                                                            </p>
+                                                            <div className="flex items-center gap-2">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    onClick={() => setOrderPage((prev) => Math.max(1, prev - 1))}
+                                                                    disabled={orderPage === 1}
+                                                                >
+                                                                    Trang trước
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    onClick={() => setOrderPage((prev) => Math.min(totalOrderPages, prev + 1))}
+                                                                    disabled={orderPage === totalOrderPages}
+                                                                >
+                                                                    Trang sau
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </section>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="rounded-2xl border border-dashed border-border bg-background p-8 text-center">
@@ -548,8 +784,8 @@ export default function ProfilePage() {
                         </Card>
 
                         {activeSection === 'profile' ? (
-                            <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-                                <Card className="rounded-2xl border-border">
+                            <div className="grid gap-8 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.75fr)]">
+                                <Card className="min-w-0 rounded-2xl border-border">
                                     <CardHeader>
                                         <CardTitle className="font-serif text-2xl">Thông tin tài khoản</CardTitle>
                                         <CardDescription>Những dữ liệu hiện đang được lưu trên hệ thống.</CardDescription>
@@ -570,7 +806,7 @@ export default function ProfilePage() {
                                             </Button>
                                         </div>
 
-                                        <div className="grid gap-4 sm:grid-cols-2">
+                                        <div className="grid min-w-0 gap-4 sm:grid-cols-2">
                                             {missingProfileFields.length > 0 ? (
                                                 <div className="sm:col-span-2 rounded-xl border border-destructive/50 bg-destructive/5 p-4">
                                                     <p className="font-medium text-destructive">Thông tin còn thiếu</p>
@@ -584,13 +820,6 @@ export default function ProfilePage() {
                                             <ProfileField icon={Mail} label="Email" value={currentUser.email} />
                                             <ProfileField icon={Phone} label="Số điện thoại" value={currentUser.phone} />
                                             <ProfileField icon={MapPin} label="Địa chỉ" value={currentUser.address} />
-                                            <div className="sm:col-span-2">
-                                                <ProfileField
-                                                    icon={MapPin}
-                                                    label="Khu vực giao hàng"
-                                                    value={currentUser.ward_name && currentUser.province_name ? `${currentUser.ward_name}, ${currentUser.province_name}` : undefined}
-                                                />
-                                            </div>
                                         </div>
 
                                         <Separator />
@@ -599,7 +828,7 @@ export default function ProfilePage() {
                                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                                 <div>
                                                     <h3 className="text-lg font-semibold text-foreground">Cập nhật hồ sơ</h3>
-                                                    <p className="text-sm text-muted-foreground">Chỉnh sửa tên, số điện thoại, địa chỉ và khu vực nhận hàng.</p>
+                                                    <p className="text-sm text-muted-foreground">Chỉnh sửa tên, số điện thoại, địa chỉ và vị trí giao hàng.</p>
                                                 </div>
                                                 <Button variant={isProfileFormOpen ? 'secondary' : 'outline'} onClick={() => setIsProfileFormOpen((prev) => !prev)}>
                                                     {isProfileFormOpen ? 'Thu gọn' : 'Chỉnh sửa hồ sơ'}
@@ -614,60 +843,33 @@ export default function ProfilePage() {
                                                     </div>
                                                     <div className="space-y-2">
                                                         <Label htmlFor="phone">Số điện thoại</Label>
-                                                        <Input id="phone" name="phone" value={profileForm.phone} onChange={handleProfileInputChange} placeholder="0901234567" />
+                                                        <Input
+                                                            id="phone"
+                                                            name="phone"
+                                                            value={profileForm.phone}
+                                                            onChange={handleProfileInputChange}
+                                                            placeholder="0901234567"
+                                                            aria-invalid={isPhoneInvalid}
+                                                        />
                                                     </div>
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="province">Tỉnh / Thành phố</Label>
-                                                        <select
-                                                            id="province"
-                                                            value={selectedProvinceId}
-                                                            onChange={(event) => {
-                                                                const nextProvinceId = event.target.value ? Number(event.target.value) : '';
-                                                                setSelectedProvinceId(nextProvinceId);
-                                                                setSelectedWardValue('');
-                                                                didHydrateWard.current = false;
-                                                            }}
-                                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                                        >
-                                                            <option value="">Chọn tỉnh / thành phố</option>
-                                                            {provinces.map((province) => (
-                                                                <option key={province.ProvinceID} value={province.ProvinceID}>
-                                                                    {province.ProvinceName}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
+                                                    <LocationSearch onSelect={handleGooglePlaceSelect} />
                                                     <div className="space-y-2 sm:col-span-2">
-                                                        <Label htmlFor="address">Địa chỉ chi tiết</Label>
-                                                        <Input id="address" name="address" value={profileForm.address} onChange={handleProfileInputChange} placeholder="Số nhà, tên đường" />
+                                                        <Label>Địa chỉ chi tiết</Label>
+                                                        <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-foreground">
+                                                            {profileForm.address || 'Chưa chọn địa điểm'}
+                                                        </div>
                                                     </div>
-                                                    <div className="space-y-2 sm:col-span-2">
-                                                        <Label htmlFor="ward">Phường / Xã</Label>
-                                                        <select
-                                                            id="ward"
-                                                            value={selectedWardValue}
-                                                            onChange={(event) => setSelectedWardValue(event.target.value)}
-                                                            disabled={!selectedProvinceId || isLoadingAddressData}
-                                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                                                        >
-                                                            {!selectedProvinceId ? (
-                                                                <option value="">Chọn tỉnh trước</option>
-                                                            ) : isLoadingAddressData ? (
-                                                                <option value="">Đang tải phường / xã...</option>
-                                                            ) : wards.length > 0 ? (
-                                                                <>
-                                                                    <option value="">Chọn phường / xã</option>
-                                                                    {wards.map((ward) => (
-                                                                        <option key={getWardOptionValue(ward)} value={getWardOptionValue(ward)}>
-                                                                            {ward.WardName}{ward.districtName ? ` - ${ward.districtName}` : ''}
-                                                                        </option>
-                                                                    ))}
-                                                                </>
-                                                            ) : (
-                                                                <option value="">Không có phường / xã để chọn</option>
-                                                            )}
-                                                        </select>
-                                                    </div>
+                                                    {selectedGooglePlace?.formattedAddress ? (
+                                                        <div className="space-y-2 sm:col-span-2 rounded-2xl border border-border bg-muted/30 p-4">
+                                                            <p className="text-sm font-medium text-foreground">Địa điểm đã chọn</p>
+                                                            <p className="text-sm leading-6 text-muted-foreground">{selectedGooglePlace.formattedAddress}</p>
+                                                            {selectedGooglePlace.latitude && selectedGooglePlace.longitude ? (
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    Tọa độ: {selectedGooglePlace.latitude}, {selectedGooglePlace.longitude}
+                                                                </p>
+                                                            ) : null}
+                                                        </div>
+                                                    ) : null}
                                                     <div className="sm:col-span-2 flex justify-end">
                                                         <Button onClick={handleSaveProfile} disabled={isSavingProfile} className="gap-2">
                                                             {isSavingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -680,7 +882,7 @@ export default function ProfilePage() {
                                     </CardContent>
                                 </Card>
 
-                                <Card className="rounded-2xl border-border">
+                                <Card className="rounded-2xl border-border lg:max-w-[420px] lg:justify-self-end">
                                     <CardHeader>
                                         <CardTitle className="font-serif text-2xl">Bảo mật tài khoản</CardTitle>
                                         <CardDescription>Đổi mật khẩu qua OTP để tài khoản an toàn hơn.</CardDescription>

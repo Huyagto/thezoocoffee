@@ -70,7 +70,7 @@ export function FeaturedProducts() {
                             name={product.name}
                             description={product.description || ''}
                             price={formatCurrency(product.price)}
-                            image={product.image || '/images/default.jpg'}
+                            image={product.image || '/images/store.jpg'}
                             badge={product.is_best_seller ? 'Best Seller' : undefined}
                         />
                     ))}

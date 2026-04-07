@@ -2,7 +2,7 @@
 
 const { BadRequestError } = require('../core/error.response');
 
-const validOrderStatuses = ['pending', 'confirmed', 'preparing', 'completed', 'cancelled'];
+const validOrderStatuses = ['pending', 'confirmed', 'preparing', 'shipping', 'completed', 'cancelled'];
 
 const validPaymentStatuses = ['unpaid', 'paid', 'failed', 'refunded'];
 

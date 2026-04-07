@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { useCart } from '@/context/cart-context';
 import orderService from '@/services/order.service';
 import type { Order } from '@/types/api';
 
@@ -53,9 +54,11 @@ function mapPaymentMethod(method?: string | null) {
 function OrderSuccessContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get('orderId');
+    const { clearCart } = useCart();
     const [order, setOrder] = useState<Order | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState('');
+    const hasClearedCartRef = useRef(false);
 
     useEffect(() => {
         const loadOrder = async () => {
@@ -79,6 +82,15 @@ function OrderSuccessContent() {
 
         loadOrder();
     }, [orderId]);
+
+    useEffect(() => {
+        if (order?.payment_status !== 'paid' || hasClearedCartRef.current) {
+            return;
+        }
+
+        hasClearedCartRef.current = true;
+        void clearCart();
+    }, [clearCart, order?.payment_status]);
 
     const subtotal = useMemo(() => {
         if (!order?.order_items?.length) {

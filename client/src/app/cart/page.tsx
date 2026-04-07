@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 
 import { Navbar } from '@/components/navbar';
@@ -19,17 +18,18 @@ function formatCurrency(amount: number) {
 export default function CartPage() {
     const { items, updateQuantity, removeFromCart, totalItems, totalPrice, clearCart } = useCart();
     const { user } = useAuth();
-    const router = useRouter();
+    const [loginNotice, setLoginNotice] = useState('');
 
-    useEffect(() => {
-        if (!user) {
-            router.push('/login');
+    const handleCheckoutClick = () => {
+        if (user) {
+            return;
         }
-    }, [user, router]);
 
-    if (!user) {
-        return null;
-    }
+        setLoginNotice(
+            'Vui lòng đăng nhập trước khi thanh toán. Giỏ hàng của bạn đã được giữ lại, sau khi đăng nhập bạn có thể tiếp tục đặt hàng.',
+        );
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     return (
         <div className="min-h-screen bg-background">
@@ -42,6 +42,12 @@ export default function CartPage() {
                         {totalItems > 0 ? `Bạn đang có ${totalItems} sản phẩm trong giỏ hàng.` : 'Giỏ hàng của bạn đang trống.'}
                     </p>
                 </div>
+
+                {loginNotice ? (
+                    <div className="mb-6 rounded-2xl border border-destructive/40 bg-destructive/5 px-4 py-4 text-sm text-destructive">
+                        {loginNotice}
+                    </div>
+                ) : null}
 
                 {items.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -173,12 +179,23 @@ export default function CartPage() {
                                     </div>
                                 </div>
 
-                                <Link href="/checkout">
-                                    <Button size="lg" className="mt-6 w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                                {user ? (
+                                    <Link href="/checkout">
+                                        <Button size="lg" className="mt-6 w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                                            Tiến hành thanh toán
+                                            <ArrowRight className="h-4 w-4" />
+                                        </Button>
+                                    </Link>
+                                ) : (
+                                    <Button
+                                        size="lg"
+                                        onClick={handleCheckoutClick}
+                                        className="mt-6 w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+                                    >
                                         Tiến hành thanh toán
                                         <ArrowRight className="h-4 w-4" />
                                     </Button>
-                                </Link>
+                                )}
 
                                 <Link href="/menu">
                                     <Button

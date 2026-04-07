@@ -1,5 +1,5 @@
 import axiosInstance from '@/lib/axios';
-import type { ApiResponse, Category, Coupon, InventoryItem, Order, Product, Recipe, User } from '@/types/api';
+import type { ApiResponse, Category, Coupon, DashboardData, InventoryItem, Order, Product, Recipe, User } from '@/types/api';
 
 const getPayload = <T>(response: ApiResponse<T>): T => response.metadata ?? response.data!;
 
@@ -13,6 +13,18 @@ const catalogService = {
         const response = await axiosInstance.get<ApiResponse<Category[]>>('/admin/categories');
 
         return getPayload(response.data);
+    },
+
+    async getDashboard(): Promise<DashboardData> {
+        const response = await axiosInstance.get<ApiResponse<DashboardData>>('/admin/dashboard');
+        const payload = getPayload(response.data);
+
+        return {
+            ...payload,
+            recentOrders: (payload.recentOrders ?? []).map((order) =>
+                normalizeOrder(order as Order & { users?: Order['user'] })
+            ),
+        };
     },
 
     async getCoupons(): Promise<Coupon[]> {

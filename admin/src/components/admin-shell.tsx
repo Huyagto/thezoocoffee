@@ -1,10 +1,13 @@
-"use client"
+﻿"use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import {
+  Bell,
   Boxes,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   FlaskConical,
   FolderTree,
@@ -16,8 +19,16 @@ import {
 } from "lucide-react"
 
 import { useAuth } from "@/context/auth-context"
+import { LocationSearch } from "@/components/location-search"
+import { type OpenStreetMapLocationSelection } from "@/lib/openstreetmap"
+import { getAdminSocket, SOCKET_EVENTS } from "@/lib/socket"
 import authService from "@/services/auth.service"
+import catalogService from "@/services/catalog.service"
+import notificationService from "@/services/notification.service"
 import shippingService from "@/services/shipping.service"
+import type { Order } from "@/types/api"
+
+const ADMIN_SIDEBAR_REFRESH_INTERVAL_MS = 10000
 
 const navItems = [
   { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
@@ -30,181 +41,309 @@ const navItems = [
   { href: "/users", label: "Người dùng", icon: Users },
 ]
 
-type ProvinceOption = {
-  ProvinceID: number
-  ProvinceName: string
+type StoreLocation = {
+  id: number
+  name: string
+  phone?: string | null
+  address: string
+  latitude?: number | null
+  longitude?: number | null
+  is_primary?: boolean
 }
 
-type WardOption = {
-  WardCode: string
-  WardName: string
-  DistrictID: number
-  districtName?: string
+type AdminNotification = {
+  id: number
+  title: string
+  message: string
+  is_read?: boolean | null
+  created_at?: string
+  orders?: {
+    id: number
+    order_code: string
+    order_status: string
+    payment_status: string
+  } | null
 }
 
-function getWardOptionValue(ward: Pick<WardOption, "DistrictID" | "WardCode">) {
-  return `${ward.DistrictID}:${ward.WardCode}`
+type PendingOrderAlert = Pick<Order, "id" | "order_code" | "order_status" | "payment_status">
+
+function formatStoreLocation(location: Partial<StoreLocation> | null | undefined) {
+  if (!location) {
+    return "Chưa có địa chỉ cửa hàng"
+  }
+
+  return [
+    location.address,
+  ]
+    .filter(Boolean)
+    .join(", ")
 }
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout, refreshUser } = useAuth()
+  const [shopName, setShopName] = useState("")
   const [pickupAddress, setPickupAddress] = useState("")
-  const [provinces, setProvinces] = useState<ProvinceOption[]>([])
-  const [wards, setWards] = useState<WardOption[]>([])
-  const [selectedProvinceId, setSelectedProvinceId] = useState<number | "">("")
-  const [selectedWardValue, setSelectedWardValue] = useState("")
-  const [isLoadingAddressData, setIsLoadingAddressData] = useState(false)
+  const [storeLocations, setStoreLocations] = useState<StoreLocation[]>([])
   const [isSavingPickupAddress, setIsSavingPickupAddress] = useState(false)
+  const [isSavingAdditionalLocation, setIsSavingAdditionalLocation] =
+    useState(false)
+  const [isAddressPanelOpen, setIsAddressPanelOpen] = useState(false)
+  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false)
+  const [activeLocationId, setActiveLocationId] = useState<number | null>(null)
   const [pickupMessage, setPickupMessage] = useState("")
   const [pickupError, setPickupError] = useState("")
-  const didHydrateProvince = useRef(false)
-  const didHydrateWard = useRef(false)
-
-  const selectedProvince = provinces.find(
-    (province) => province.ProvinceID === Number(selectedProvinceId)
+  const [selectedGooglePlace, setSelectedGooglePlace] =
+    useState<OpenStreetMapLocationSelection | null>(null)
+  const [notifications, setNotifications] = useState<AdminNotification[]>([])
+  const [pendingOrderAlerts, setPendingOrderAlerts] = useState<PendingOrderAlert[]>([])
+  const activeStoreLocation =
+    storeLocations.find((location) => location.id === activeLocationId) ??
+    storeLocations.find((location) => location.is_primary) ??
+    null
+  const pendingConfirmationNotifications = notifications.filter(
+    (notification) =>
+      !notification.is_read &&
+      notification.orders?.order_status === "pending"
   )
-  const selectedWard = wards.find(
-    (ward) => getWardOptionValue(ward) === selectedWardValue
+  const visiblePendingOrders = Array.from(
+    new Map(
+      [
+        ...pendingOrderAlerts,
+        ...pendingConfirmationNotifications.map((notification) => ({
+          id: notification.orders?.id ?? notification.id,
+          order_code: notification.orders?.order_code || "Đơn hàng chờ xác nhận",
+          order_status: notification.orders?.order_status || "pending",
+          payment_status: notification.orders?.payment_status || "unpaid",
+        })),
+      ]
+        .sort((left, right) => Number(right.id) - Number(left.id))
+        .map((order) => [order.id, order])
+    ).values()
   )
+  const getPendingNotificationByOrderId = (orderId: number) =>
+    pendingConfirmationNotifications.find(
+      (notification) => notification.orders?.id === orderId
+    )
 
-  useEffect(() => {
-    setPickupAddress(user?.address ?? "")
-    setSelectedWardValue("")
-    didHydrateProvince.current = false
-    didHydrateWard.current = false
-  }, [user])
+  const handleGooglePlaceSelect = async (place: OpenStreetMapLocationSelection) => {
+    setSelectedGooglePlace(place)
+    setPickupAddress(place.addressLine || place.formattedAddress)
+    setPickupError("")
+    setPickupMessage("")
+  }
 
-  useEffect(() => {
-    let isMounted = true
-    setIsLoadingAddressData(true)
-
-    shippingService
-      .getProvinces()
-      .then((data) => {
-        if (!isMounted) return
-        setProvinces(data)
-
-        if (user?.province_name && !didHydrateProvince.current) {
-          const matchedProvince = data.find(
-            (province) => province.ProvinceName === user.province_name
-          )
-
-          if (matchedProvince) {
-            setSelectedProvinceId(matchedProvince.ProvinceID)
-            didHydrateProvince.current = true
-          }
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setProvinces([])
-        }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsLoadingAddressData(false)
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [user?.province_name])
-
-  useEffect(() => {
-    if (!selectedProvinceId) {
-      setWards([])
-      setSelectedWardValue("")
+  const loadNotifications = useCallback(async () => {
+    if (!user) {
+      setNotifications([])
       return
     }
 
-    let isMounted = true
-    setIsLoadingAddressData(true)
+    try {
+      const data = await notificationService.getAdminNotifications()
+      setNotifications(data as AdminNotification[])
+    } catch {
+      setNotifications([])
+    }
+  }, [user])
 
-    shippingService
-      .getDistricts(Number(selectedProvinceId))
-      .then(async (districts) => {
-        const wardResults = await Promise.allSettled(
-          districts.map(async (district) => {
-            const districtWards = await shippingService.getWards(
-              district.DistrictID
-            )
+  const loadPendingOrders = useCallback(async () => {
+    if (!user) {
+      setPendingOrderAlerts([])
+      return
+    }
 
-            return districtWards.map((ward) => ({
-              ...ward,
-              districtName: district.DistrictName,
-            }))
-          })
+    try {
+      const orders = await catalogService.getOrders()
+      setPendingOrderAlerts(
+        orders.filter((order) => order.order_status === "pending")
+      )
+    } catch {
+      setPendingOrderAlerts([])
+    }
+  }, [user])
+
+  const applyStoreLocationToForm = (location: StoreLocation) => {
+    setShopName(location.name ?? "")
+    setPickupAddress(location.address ?? "")
+    setSelectedGooglePlace(
+      location.address
+        ? {
+            placeId: null,
+            formattedAddress: location.address || "",
+            addressLine: location.address || "",
+            provinceName: "",
+            districtName: "",
+            wardName: "",
+            latitude: location.latitude ?? null,
+            longitude: location.longitude ?? null,
+          }
+        : null
+    )
+  }
+
+  useEffect(() => {
+    setShopName(user?.name ?? "")
+    setPickupAddress(user?.address ?? "")
+    setSelectedGooglePlace(
+      user?.address
+        ? {
+            placeId: null,
+            formattedAddress: user?.address || "",
+            addressLine: user?.address || "",
+            provinceName: "",
+            districtName: "",
+            wardName: "",
+            latitude: user?.latitude ?? null,
+            longitude: user?.longitude ?? null,
+          }
+        : null
+    )
+  }, [user])
+
+  useEffect(() => {
+    void loadNotifications()
+  }, [loadNotifications, pathname])
+
+  useEffect(() => {
+    void loadPendingOrders()
+  }, [loadPendingOrders, pathname])
+
+  useEffect(() => {
+    const handleAdminOrdersUpdated = () => {
+      void loadNotifications()
+      void loadPendingOrders()
+    }
+
+    window.addEventListener("admin-orders-updated", handleAdminOrdersUpdated)
+    return () => {
+      window.removeEventListener("admin-orders-updated", handleAdminOrdersUpdated)
+    }
+  }, [loadNotifications, loadPendingOrders])
+
+  useEffect(() => {
+    if (!user) {
+      return
+    }
+
+    const socket = getAdminSocket()
+    const handleRealtimeSync = () => {
+      void loadNotifications()
+      void loadPendingOrders()
+    }
+    const handleVisibilitySync = () => {
+      if (document.visibilityState === 'visible') {
+        void loadNotifications()
+        void loadPendingOrders()
+      }
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void loadNotifications()
+        void loadPendingOrders()
+      }
+    }, ADMIN_SIDEBAR_REFRESH_INTERVAL_MS)
+
+    socket.connect()
+    socket.on(SOCKET_EVENTS.ADMIN_NEW_ORDER, handleRealtimeSync)
+    socket.on(SOCKET_EVENTS.ADMIN_ORDER_STATUS_UPDATED, handleRealtimeSync)
+    socket.on(SOCKET_EVENTS.ADMIN_NOTIFICATION_CREATED, handleRealtimeSync)
+    document.addEventListener('visibilitychange', handleVisibilitySync)
+
+    return () => {
+      socket.off(SOCKET_EVENTS.ADMIN_NEW_ORDER, handleRealtimeSync)
+      socket.off(SOCKET_EVENTS.ADMIN_ORDER_STATUS_UPDATED, handleRealtimeSync)
+      socket.off(SOCKET_EVENTS.ADMIN_NOTIFICATION_CREATED, handleRealtimeSync)
+      document.removeEventListener('visibilitychange', handleVisibilitySync)
+      window.clearInterval(intervalId)
+      socket.disconnect()
+    }
+  }, [loadNotifications, loadPendingOrders, user])
+
+  const handleMarkNotificationAsRead = async (notificationId: number) => {
+    try {
+      const updatedNotification =
+        await notificationService.markAdminNotificationAsRead(notificationId)
+      setNotifications((currentNotifications) =>
+        currentNotifications.map((notification) =>
+          notification.id === updatedNotification.id
+            ? (updatedNotification as AdminNotification)
+            : notification
         )
+      )
+    } catch {
+      // Ignore quiet sidebar action failure.
+    }
+  }
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadStoreLocations = async () => {
+      if (!user) {
+        if (isMounted) {
+          setStoreLocations([])
+          setActiveLocationId(null)
+        }
+        return
+      }
+
+      try {
+        const locations = await shippingService.getStoreLocations()
 
         if (!isMounted) return
 
-        const mergedWards = wardResults
-          .reduce<WardOption[]>((accumulator, result) => {
-            if (result.status === "fulfilled") {
-              accumulator.push(...result.value)
-            }
-
-            return accumulator
-          }, [])
-          .sort((first, second) =>
-            first.WardName.localeCompare(second.WardName, "vi")
-          )
-
-        setWards(mergedWards)
-
-        if (user?.to_ward_code && !didHydrateWard.current) {
-          const matchedWard = mergedWards.find(
-            (ward) =>
-              ward.WardCode === user.to_ward_code &&
-              ward.DistrictID === user.to_district_id
-          )
-
-          if (matchedWard) {
-            setSelectedWardValue(getWardOptionValue(matchedWard))
-            didHydrateWard.current = true
-          }
-        }
-      })
-      .catch(() => {
+        setStoreLocations(locations)
+        setActiveLocationId(
+          locations.find((location) => location.is_primary)?.id ?? null
+        )
+      } catch {
         if (isMounted) {
-          setWards([])
+          setStoreLocations([])
+          setActiveLocationId(null)
         }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsLoadingAddressData(false)
-        }
-      })
+      }
+    }
+
+    void loadStoreLocations()
 
     return () => {
       isMounted = false
     }
-  }, [selectedProvinceId, user?.to_district_id, user?.to_ward_code])
+  }, [user])
+
 
   const handleLogout = async () => {
     await logout()
     router.replace("/login")
   }
 
-  const handleSavePickupAddress = async () => {
-    if (!user?.name?.trim()) {
-      setPickupError("Tài khoản admin cần có tên trước khi lưu địa chỉ.")
+  const validateStoreLocationForm = (emptyNameMessage: string) => {
+    if (!shopName.trim()) {
+      setPickupError(emptyNameMessage)
       setPickupMessage("")
-      return
+      return false
     }
 
     if (!pickupAddress.trim()) {
-      setPickupError("Vui lòng nhập địa chỉ chi tiết.")
+      setPickupError("Vui lòng nhập địa chỉ chi tiết của cửa hàng.")
       setPickupMessage("")
-      return
+      return false
     }
 
-    if (!selectedProvince || !selectedWard?.districtName) {
-      setPickupError("Vui lòng chọn đầy đủ tỉnh/thành và phường/xã.")
+    if (!selectedGooglePlace?.latitude || !selectedGooglePlace?.longitude) {
+      setPickupError("Vui lòng chọn địa điểm trên bản đồ để lưu tọa độ cửa hàng.")
       setPickupMessage("")
+      return false
+    }
+
+    return true
+  }
+
+  const handleSavePickupAddress = async () => {
+    if (!validateStoreLocationForm("Vui lòng nhập tên cửa hàng trước khi lưu.")) {
       return
     }
 
@@ -214,39 +353,298 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
     try {
       await authService.updateProfile({
-        name: user.name,
-        phone: user.phone ?? "",
+        name: shopName.trim(),
+        phone: user?.phone ?? "",
         address: pickupAddress.trim(),
-        provinceName: selectedProvince.ProvinceName,
-        districtName: selectedWard.districtName,
-        wardName: selectedWard.WardName,
-        toDistrictId: selectedWard.DistrictID,
-        toWardCode: selectedWard.WardCode,
+        latitude: selectedGooglePlace?.latitude || undefined,
+        longitude: selectedGooglePlace?.longitude || undefined,
       })
 
       await refreshUser()
-      setPickupMessage("Đã lưu địa chỉ nhận hàng cho GHN.")
+      setStoreLocations((currentLocations) =>
+        currentLocations.map((location) =>
+          location.is_primary
+            ? {
+                ...location,
+                name: shopName.trim(),
+                phone: user?.phone ?? "",
+                address: pickupAddress.trim(),
+                latitude: selectedGooglePlace?.latitude || null,
+                longitude: selectedGooglePlace?.longitude || null,
+              }
+            : location
+        )
+      )
+      setPickupMessage("Đã lưu địa chỉ cửa hàng và đồng bộ vị trí giao hàng.")
     } catch (error) {
       setPickupError(
-        error instanceof Error ? error.message : "Không thể lưu địa chỉ nhận hàng."
+        error instanceof Error ? error.message : "Không thể lưu địa chỉ cửa hàng."
       )
     } finally {
       setIsSavingPickupAddress(false)
     }
   }
 
+  const handleAddStoreLocation = async () => {
+    if (!validateStoreLocationForm("Vui lòng nhập tên cửa hàng trước khi thêm địa chỉ.")) {
+      return
+    }
+
+    setIsSavingAdditionalLocation(true)
+    setPickupError("")
+    setPickupMessage("")
+
+    try {
+      const createdLocation = await shippingService.createStoreLocation({
+        name: shopName.trim(),
+        phone: user?.phone ?? "",
+        address: pickupAddress.trim(),
+        latitude: selectedGooglePlace?.latitude || undefined,
+        longitude: selectedGooglePlace?.longitude || undefined,
+      })
+
+      setStoreLocations((currentLocations) => [createdLocation, ...currentLocations])
+      setPickupMessage("Đã thêm địa chỉ cửa hàng mới.")
+    } catch (error) {
+      setPickupError(
+        error instanceof Error ? error.message : "Không thể thêm địa chỉ cửa hàng."
+      )
+    } finally {
+      setIsSavingAdditionalLocation(false)
+    }
+  }
+
+  const handleSelectStoreLocation = async (location: StoreLocation) => {
+    setActiveLocationId(location.id)
+    setPickupError("")
+    setPickupMessage("")
+
+    try {
+      await shippingService.setPrimaryStoreLocation(location.id)
+      await refreshUser()
+      applyStoreLocationToForm({
+        ...location,
+        is_primary: true,
+      })
+      setStoreLocations((currentLocations) =>
+        currentLocations.map((currentLocation) => ({
+          ...currentLocation,
+          is_primary: currentLocation.id === location.id,
+        }))
+      )
+      setPickupMessage("Đã chuyển sang địa chỉ cửa hàng này.")
+    } catch (error) {
+      setActiveLocationId(
+        storeLocations.find((currentLocation) => currentLocation.is_primary)?.id ??
+          null
+      )
+      setPickupError(
+        error instanceof Error ? error.message : "Không thể chọn địa chỉ cửa hàng."
+      )
+    }
+  }
+
+  const storeLocationPanel = (
+    <section className="rounded-[32px] border border-[var(--border)] bg-[var(--panel)] p-6 shadow-[0_24px_60px_rgba(68,45,24,0.06)]">
+      <button
+        type="button"
+        onClick={() => setIsAddressPanelOpen((currentValue) => !currentValue)}
+        className="flex w-full flex-col gap-4 text-left lg:flex-row lg:items-start lg:justify-between"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
+              Địa chỉ cửa hàng
+            </p>
+            <span className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-[11px] font-semibold text-[var(--foreground)]">
+              {storeLocations.length} địa chỉ đã lưu
+            </span>
+            {activeStoreLocation ? (
+              <span className="rounded-full bg-[rgba(46,125,91,0.12)] px-3 py-1 text-[11px] font-semibold text-[var(--foreground)]">
+                Đang dùng giao hàng
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-4">
+            <div className="min-w-0 rounded-3xl bg-[linear-gradient(135deg,rgba(109,63,31,0.08)_0%,rgba(168,107,59,0.14)_100%)] p-5">
+              <p className="text-lg font-semibold text-[var(--foreground)]">
+                {activeStoreLocation?.name || shopName || "TheZooCoffee"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+                {formatStoreLocation(activeStoreLocation)}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                Địa chỉ đang dùng sẽ hiển thị ngoài client và làm điểm tính phí giao hàng.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center self-end rounded-2xl border border-[var(--border)] bg-white text-[var(--foreground)] lg:self-start">
+          {isAddressPanelOpen ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+        </span>
+      </button>
+
+      {isAddressPanelOpen ? (
+        <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+            <div className="rounded-3xl border border-[var(--border)] bg-white p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h3 className="mt-2 text-lg font-semibold text-[var(--foreground)]">
+                    Cập nhật địa chỉ cửa hàng
+                  </h3>
+                </div>
+                <p className="text-sm leading-6 text-[var(--muted)]">
+                  Sửa nhanh tên shop và địa chỉ đang dùng.
+                </p>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
+                    Tên cửa hàng
+                  </span>
+                  <input
+                    type="text"
+                    value={shopName}
+                    onChange={(event) => setShopName(event.target.value)}
+                    className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3 text-sm outline-none"
+                    placeholder="Nhập tên cửa hàng"
+                  />
+                </label>
+
+                <LocationSearch onSelect={handleGooglePlaceSelect} />
+
+                {selectedGooglePlace?.formattedAddress ? (
+                  <div className="sm:col-span-2 rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3 text-sm text-[var(--muted)]">
+                    <p className="font-medium text-[var(--foreground)]">
+                      Địa điểm đã chọn
+                    </p>
+                    <p className="mt-1 leading-6">
+                      {selectedGooglePlace.formattedAddress}
+                    </p>
+                  </div>
+                ) : null}
+
+                {pickupError ? (
+                  <div className="sm:col-span-2 rounded-2xl border border-[rgba(157,49,49,0.18)] bg-[rgba(157,49,49,0.08)] px-4 py-3 text-sm text-[var(--danger)]">
+                    {pickupError}
+                  </div>
+                ) : null}
+
+                {pickupMessage ? (
+                  <div className="sm:col-span-2 rounded-2xl border border-[rgba(46,125,91,0.18)] bg-[rgba(46,125,91,0.08)] px-4 py-3 text-sm text-[var(--foreground)]">
+                    {pickupMessage}
+                  </div>
+                ) : null}
+
+                <div className="sm:col-span-2 grid gap-3 lg:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={handleSavePickupAddress}
+                    disabled={isSavingPickupAddress}
+                    className="w-full rounded-2xl bg-[var(--foreground)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isSavingPickupAddress
+                      ? "Đang lưu địa chỉ cửa hàng..."
+                      : "Lưu địa chỉ cửa hàng"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleAddStoreLocation}
+                    disabled={isSavingAdditionalLocation}
+                    className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)] hover:text-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isSavingAdditionalLocation
+                      ? "Đang thêm địa chỉ mới..."
+                      : "Thêm địa chỉ mới"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel-strong)] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
+                    Địa chỉ đã lưu
+                  </p>
+                </div>
+                <span className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs font-semibold text-[var(--foreground)]">
+                  {storeLocations.length}
+                </span>
+              </div>
+
+              {storeLocations.length ? (
+                <div className="mt-4 grid gap-3">
+                  {storeLocations.map((location) => (
+                    <div
+                      key={location.id}
+                      className={`rounded-2xl border p-4 transition ${
+                        activeLocationId === location.id
+                          ? "border-[var(--primary)] bg-[rgba(109,63,31,0.06)] shadow-[0_14px_30px_rgba(109,63,31,0.08)]"
+                          : "border-[var(--border)] bg-white"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                              {location.name}
+                            </p>
+                            <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
+                              {formatStoreLocation(location)}
+                            </p>
+                          </div>
+                          {activeLocationId === location.id ? (
+                            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--foreground)]">
+                              Đang dùng
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSelectStoreLocation(location)}
+                          disabled={activeLocationId === location.id}
+                          className="rounded-xl border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)] hover:text-[var(--primary)] disabled:cursor-default disabled:bg-[var(--panel-strong)] disabled:text-[var(--muted)]"
+                        >
+                          {activeLocationId === location.id
+                            ? "Đang dùng giao hàng"
+                            : "Đặt làm địa chỉ giao hàng"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-dashed border-[var(--border)] bg-white px-4 py-5 text-sm leading-6 text-[var(--muted)]">
+                  Chưa có địa chỉ cửa hàng nào được lưu.
+                </div>
+              )}
+            </div>
+          </div>
+      ) : null}
+    </section>
+  )
+
   return (
     <div className="min-h-screen p-4 lg:p-6">
-      <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-7xl gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-[1560px] gap-4 lg:grid-cols-[292px_minmax(0,1fr)]">
         <aside className="rounded-[32px] border border-[var(--border)] bg-[var(--panel)] p-6 shadow-[0_24px_60px_rgba(68,45,24,0.08)]">
           <div className="rounded-[28px] bg-[linear-gradient(135deg,#6d3f1f_0%,#a86b3b_100%)] p-5 text-[var(--primary-foreground)]">
             <p className="text-xs uppercase tracking-[0.32em] text-white/70">
-              TheZooCoffee
+              {shopName || "TheZooCoffee"}
             </p>
             <h1 className="mt-3 text-3xl font-semibold">Trang quản trị</h1>
             <p className="mt-2 text-sm leading-6 text-white/80">
-              Khu vực riêng để quản lý vận hành, sản phẩm, công thức, đơn hàng
-              và mã giảm giá.
+              Khu vực riêng để quản lý vận hành, sản phẩm, công thức, đơn hàng và mã giảm giá.
             </p>
           </div>
 
@@ -254,6 +652,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href
+              const isOrdersItem = item.href === "/orders"
 
               return (
                 <Link
@@ -272,113 +671,27 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                         : "text-[var(--muted)] group-hover:text-[var(--foreground)]"
                     }`}
                   />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {isOrdersItem && visiblePendingOrders.length > 0 ? (
+                    <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-[var(--foreground)]">
+                      {visiblePendingOrders.length}
+                    </span>
+                  ) : null}
                 </Link>
               )
             })}
           </nav>
 
-          <div className="mt-8 rounded-3xl border border-[var(--border)] bg-[var(--panel-strong)] p-4">
+          <div className="mt-4 min-w-0 rounded-3xl border border-[var(--border)] bg-[var(--panel-strong)] p-4">
             <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
               Đang đăng nhập
             </p>
-            <p className="mt-2 text-lg font-semibold text-[var(--foreground)]">
-              {user?.name}
+            <p className="mt-2 break-all text-sm leading-6 text-[var(--muted)]">
+              {user?.email}
             </p>
-            <p className="mt-1 text-sm text-[var(--muted)]">{user?.email}</p>
-          </div>
-
-          <div className="mt-4 rounded-3xl border border-[var(--border)] bg-[var(--panel-strong)] p-4">
-            <p className="text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
-              Địa chỉ nhận hàng
+            <p className="mt-2 break-words text-sm font-medium leading-6 text-[var(--foreground)]">
+              Vai trò: {user?.role || "admin"}
             </p>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Địa chỉ admin lưu ở đây sẽ được dùng làm điểm lấy hàng GHN thay
-              cho cấu hình tay trong `.env`.
-            </p>
-
-            <div className="mt-4 space-y-3">
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                  Địa chỉ chi tiết
-                </span>
-                <input
-                  type="text"
-                  value={pickupAddress}
-                  onChange={(event) => setPickupAddress(event.target.value)}
-                  className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
-                  placeholder="Số nhà, tên đường..."
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                  Tỉnh / Thành
-                </span>
-                <select
-                  value={selectedProvinceId}
-                  onChange={(event) =>
-                    setSelectedProvinceId(
-                      event.target.value ? Number(event.target.value) : ""
-                    )
-                  }
-                  className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
-                >
-                  <option value="">Chọn tỉnh/thành</option>
-                  {provinces.map((province) => (
-                    <option key={province.ProvinceID} value={province.ProvinceID}>
-                      {province.ProvinceName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-                  Phường / Xã
-                </span>
-                <select
-                  value={selectedWardValue}
-                  onChange={(event) => setSelectedWardValue(event.target.value)}
-                  disabled={!selectedProvinceId || isLoadingAddressData}
-                  className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <option value="">
-                    {isLoadingAddressData
-                      ? "Đang tải phường/xã..."
-                      : "Chọn phường/xã"}
-                  </option>
-                  {wards.map((ward) => (
-                    <option key={getWardOptionValue(ward)} value={getWardOptionValue(ward)}>
-                      {ward.WardName} - {ward.districtName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            {pickupError ? (
-              <div className="mt-4 rounded-2xl border border-[rgba(157,49,49,0.18)] bg-[rgba(157,49,49,0.08)] px-4 py-3 text-sm text-[var(--danger)]">
-                {pickupError}
-              </div>
-            ) : null}
-
-            {pickupMessage ? (
-              <div className="mt-4 rounded-2xl border border-[rgba(46,125,91,0.18)] bg-[rgba(46,125,91,0.08)] px-4 py-3 text-sm text-[var(--foreground)]">
-                {pickupMessage}
-              </div>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={handleSavePickupAddress}
-              disabled={isSavingPickupAddress || isLoadingAddressData}
-              className="mt-4 w-full rounded-2xl bg-[var(--foreground)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isSavingPickupAddress
-                ? "Đang lưu địa chỉ..."
-                : "Lưu địa chỉ nhận hàng"}
-            </button>
           </div>
 
           <button
@@ -411,9 +724,144 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main>{children}</main>
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() =>
+                  setIsNotificationPanelOpen((currentValue) => !currentValue)
+                }
+                className="flex w-full max-w-[340px] items-center justify-between gap-3 rounded-[28px] border border-[var(--border)] bg-[rgba(255,253,248,0.92)] px-4 py-3 text-left shadow-[0_20px_40px_rgba(68,45,24,0.06)]"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
+                    Thông báo
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+                    {visiblePendingOrders.length > 0
+                      ? `${visiblePendingOrders.length} đơn chờ xác nhận`
+                      : "Không có thông báo mới"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {visiblePendingOrders.length > 0 ? (
+                    <span className="rounded-full bg-[var(--primary)] px-2.5 py-1 text-[11px] font-semibold text-[var(--primary-foreground)]">
+                      {visiblePendingOrders.length}
+                    </span>
+                  ) : null}
+                  <span className="rounded-2xl bg-[var(--panel)] p-2 text-[var(--foreground)]">
+                    <Bell className="h-4 w-4" />
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            {storeLocationPanel}
+            <main>{children}</main>
+          </div>
         </div>
       </div>
+
+      {isNotificationPanelOpen ? (
+        <div
+          className="fixed inset-0 z-40 bg-[rgba(30,22,16,0.18)] backdrop-blur-[2px]"
+          onClick={() => setIsNotificationPanelOpen(false)}
+        >
+          <aside
+            className="absolute right-4 top-4 h-[calc(100vh-2rem)] w-[min(380px,calc(100vw-2rem))] overflow-y-auto rounded-[32px] border border-[var(--border)] bg-[rgba(255,253,248,0.97)] p-4 shadow-[0_28px_70px_rgba(68,45,24,0.18)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 rounded-2xl bg-white px-4 py-4">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
+                  Thông báo
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+                  {visiblePendingOrders.length > 0
+                    ? `${visiblePendingOrders.length} đơn chờ xác nhận`
+                    : "Không có thông báo mới"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNotificationPanelOpen(false)}
+                className="rounded-2xl border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+              >
+                Đóng
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {visiblePendingOrders.map((pendingOrder) => {
+                const matchedNotification = getPendingNotificationByOrderId(
+                  pendingOrder.id
+                )
+
+                return (
+                  <div
+                    key={pendingOrder.id}
+                    className="rounded-2xl border border-[var(--border)] bg-white px-4 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                          {pendingOrder.order_code}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+                          Đơn hàng đang chờ admin xác nhận trước khi chuyển sang chuẩn bị.
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-[rgba(109,63,31,0.1)] px-2.5 py-1 text-[11px] font-semibold text-[var(--foreground)]">
+                        Chờ xác nhận
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--muted)]">
+                        {pendingOrder.payment_status === "paid"
+                          ? "Đã thanh toán"
+                          : "Chưa thanh toán"}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsNotificationPanelOpen(false)
+                            router.push(`/orders?focusOrderId=${pendingOrder.id}`)
+                          }}
+                          className="rounded-full bg-[var(--primary)] px-3 py-1.5 text-[11px] font-semibold text-[var(--primary-foreground)]"
+                        >
+                          Mở đơn
+                        </button>
+                        {matchedNotification ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleMarkNotificationAsRead(
+                                matchedNotification.id
+                              )
+                            }}
+                            className="rounded-full border border-[var(--border)] px-3 py-1.5 text-[11px] font-semibold text-[var(--foreground)]"
+                          >
+                            Đã xem
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {visiblePendingOrders.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-white px-4 py-3 text-sm text-[var(--muted)]">
+                  Chưa có đơn hàng nào đang chờ xác nhận.
+                </div>
+              ) : null}
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </div>
   )
 }
+

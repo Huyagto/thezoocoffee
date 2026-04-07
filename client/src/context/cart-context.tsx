@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import cartService from '@/services/cart.service';
 import { useAuth } from './auth-context';
@@ -25,54 +25,128 @@ interface CartContextType {
     isLoading: boolean;
 }
 
+const CART_STORAGE_KEY = 'thezoocoffee_cart';
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 function normalizeCartItem(item: any): CartItem {
     return {
-        id: Number(item.id ?? item.productId),
+        id: Number(item.id ?? item.productId ?? item.product?.id),
         name: item.name ?? item.product?.name ?? '',
         description: item.description ?? item.product?.description ?? '',
         price: Number(item.price ?? item.product?.price ?? 0),
-        image: item.image ?? item.product?.image ?? '/images/placeholder.jpg',
+        image: item.image ?? item.product?.image ?? '/images/store.jpg',
         quantity: Number(item.quantity ?? 0),
     };
+}
+
+function readLocalCart(): CartItem[] {
+    if (typeof window === 'undefined') {
+        return [];
+    }
+
+    try {
+        const raw = window.localStorage.getItem(CART_STORAGE_KEY);
+        if (!raw) {
+            return [];
+        }
+
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+
+        return parsed.map(normalizeCartItem).filter((item) => item.id > 0 && item.quantity > 0);
+    } catch {
+        return [];
+    }
+}
+
+function writeLocalCart(items: CartItem[]) {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+}
+
+function clearLocalCart() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.localStorage.removeItem(CART_STORAGE_KEY);
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
     const { user, isLoading: isAuthLoading } = useAuth();
     const [items, setItems] = useState<CartItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const lastSyncedUserId = useRef<string | number | null>(null);
+
+    const loadRemoteCart = useCallback(async () => {
+        const cart = await cartService.getCart();
+        return (cart.items || []).map(normalizeCartItem);
+    }, []);
 
     const loadCart = useCallback(async () => {
         if (!user) {
-            setItems([]);
+            setItems(readLocalCart());
             setIsLoading(false);
+            lastSyncedUserId.current = null;
             return;
         }
 
         try {
             setIsLoading(true);
-            const cart = await cartService.getCart();
-            setItems((cart.items || []).map(normalizeCartItem));
+
+            if (lastSyncedUserId.current !== user.id) {
+                const localItems = readLocalCart();
+
+                for (const item of localItems) {
+                    await cartService.addToCart({
+                        productId: String(item.id),
+                        quantity: item.quantity,
+                    });
+                }
+
+                if (localItems.length > 0) {
+                    clearLocalCart();
+                }
+
+                lastSyncedUserId.current = user.id;
+            }
+
+            setItems(await loadRemoteCart());
         } catch (error) {
-            console.error('Error loading cart from API:', error);
+            console.error('Error loading cart:', error);
             setItems([]);
         } finally {
             setIsLoading(false);
         }
-    }, [user]);
+    }, [user, loadRemoteCart]);
 
     useEffect(() => {
         if (isAuthLoading) {
             return;
         }
 
-        loadCart();
+        void loadCart();
     }, [isAuthLoading, loadCart]);
 
     const addToCart = useCallback(
         async (item: Omit<CartItem, 'quantity'>) => {
             if (!user) {
+                setItems((prevItems) => {
+                    const existingItem = prevItems.find((cartItem) => cartItem.id === item.id);
+                    const nextItems = existingItem
+                        ? prevItems.map((cartItem) =>
+                              cartItem.id === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem,
+                          )
+                        : [...prevItems, { ...item, quantity: 1 }];
+
+                    writeLocalCart(nextItems);
+                    return nextItems;
+                });
                 return;
             }
 
@@ -96,6 +170,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const removeFromCart = useCallback(
         async (id: number) => {
             if (!user) {
+                setItems((prevItems) => {
+                    const nextItems = prevItems.filter((item) => item.id !== id);
+                    writeLocalCart(nextItems);
+                    return nextItems;
+                });
                 return;
             }
 
@@ -108,6 +187,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const updateQuantity = useCallback(
         async (id: number, quantity: number) => {
             if (!user) {
+                setItems((prevItems) => {
+                    const nextItems =
+                        quantity < 1
+                            ? prevItems.filter((item) => item.id !== id)
+                            : prevItems.map((item) => (item.id === id ? { ...item, quantity } : item));
+
+                    writeLocalCart(nextItems);
+                    return nextItems;
+                });
                 return;
             }
 
@@ -126,6 +214,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     const clearCart = useCallback(async () => {
         if (!user) {
+            clearLocalCart();
             setItems([]);
             return;
         }

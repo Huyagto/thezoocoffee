@@ -1,7 +1,7 @@
 const axios = require('axios');
 require('dotenv').config();
 const getFacebookLoginUrl = () => {
-    return `https://www.facebook.com/v19.0/dialog/oauth?client_id=${process.env.FACEBOOK_APP_ID}&redirect_uri=${process.env.FACEBOOK_REDIRECT_URI}&scope=email,public_profile`;
+    return `https://www.facebook.com/v19.0/dialog/oauthứclient_id=${process.env.FACEBOOK_APP_ID}&redirect_uri=${process.env.FACEBOOK_REDIRECT_URI}&scope=email,public_profile`;
 };
 
 const getFacebookAccessToken = async (code) => {

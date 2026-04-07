@@ -1,94 +1,130 @@
-import Image from 'next/image';
-import { MapPin, Clock, Phone } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+'use client';
 
-const locations = [
-    {
-        name: 'Downtown Central',
-        address: '123 Main Street, Downtown',
-        hours: 'Mon-Fri: 6AM-9PM, Sat-Sun: 7AM-8PM',
-        phone: '(555) 123-4567',
-    },
-    {
-        name: 'Riverside Plaza',
-        address: '456 River Road, Riverside',
-        hours: 'Mon-Fri: 7AM-8PM, Sat-Sun: 8AM-6PM',
-        phone: '(555) 234-5678',
-    },
-    {
-        name: 'University District',
-        address: '789 College Ave, Campus Area',
-        hours: 'Mon-Sun: 6AM-11PM',
-        phone: '(555) 345-6789',
-    },
-];
+import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+import { MapPin, Phone } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import shippingService from '@/services/shipping.service';
+import type { StoreLocation } from '@/types/api';
+
+function buildFullAddress(location: StoreLocation) {
+    return location.address?.trim() || 'Chưa có địa chỉ cửa hàng';
+}
 
 export function StoreLocations() {
+    const [locations, setLocations] = useState<StoreLocation[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadStoreLocation = async () => {
+            try {
+                const storeLocation = await shippingService.getStoreLocations();
+                if (isMounted) {
+                    setLocations(storeLocation);
+                }
+            } catch {
+                if (isMounted) {
+                    setLocations([]);
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        void loadStoreLocation();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    const primaryLocation = useMemo(
+        () => locations.find((location) => location.is_primary) ?? locations[0] ?? null,
+        [locations]
+    );
+
     return (
         <section id="about" className="bg-background py-20 lg:py-28">
             <div className="mx-auto max-w-7xl px-4 lg:px-8">
                 <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
-                    {/* Image */}
                     <div className="relative">
                         <div className="relative aspect-[4/3] overflow-hidden rounded-3xl shadow-2xl">
-                            <Image
-                                src="/images/store.jpg"
-                                alt="TheZooCoffee store interior"
-                                fill
-                                className="object-cover"
-                            />
+                            <Image src="/images/store.jpg" alt="TheZooCoffee store interior" fill className="object-cover" loading="eager" />
                         </div>
-                        {/* Decorative card */}
                         <div className="absolute -bottom-6 -right-6 hidden rounded-2xl bg-primary p-6 text-primary-foreground shadow-xl md:block">
-                            <p className="font-serif text-3xl font-bold">3</p>
-                            <p className="text-sm opacity-90">Địa điểm phục vụ bạn</p>
+                            <p className="font-serif text-3xl font-bold">{locations.length || '-'}</p>
+                            <p className="text-sm opacity-90">Địa điểm đang hiển thị</p>
                         </div>
                     </div>
 
-                    {/* Content */}
                     <div>
                         <span className="mb-4 inline-block text-sm font-medium uppercase tracking-wider text-accent">
                             Thăm Chúng Tôi
                         </span>
                         <h2 className="font-serif text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl">
-                            Các Địa Điểm Của Chúng Tôi
+                            Địa Chỉ Cửa Hàng
                         </h2>
                         <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
-                            Tìm địa điểm TheZooCoffee gần nhất của bạn và trải nghiệm không gian ấm áp, chào đón của
-                            chúng tôi. Mỗi địa điểm đều mang đến cùng chất lượng cà phê và dịch vụ đặc biệt mà bạn yêu
-                            thích.
+                            Địa chỉ này được lấy trực tiếp từ thông tin admin cấu hình trong hệ thống, không dùng dữ liệu mẫu.
                         </p>
 
-                        {/* Locations List */}
                         <div className="mt-8 space-y-6">
-                            {locations.map((location) => (
-                                <div
-                                    key={location.name}
-                                    className="rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/50 hover:shadow-md"
-                                >
-                                    <h3 className="font-serif text-lg font-semibold text-card-foreground">
-                                        {location.name}
-                                    </h3>
-                                    <div className="mt-3 space-y-2">
-                                        <div className="flex items-start gap-3 text-sm text-muted-foreground">
-                                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                                            <span>{location.address}</span>
+                            {isLoading ? (
+                                <div className="rounded-xl border border-border bg-card p-5">
+                                    <p className="text-sm text-muted-foreground">Đang tải địa chỉ cửa hàng...</p>
+                                </div>
+                            ) : locations.length ? (
+                                locations.map((location) => {
+                                    const fullAddress = buildFullAddress(location);
+                                    const isPrimary = primaryLocation?.id === location.id;
+
+                                    return (
+                                        <div
+                                            key={location.id}
+                                            className="rounded-xl border border-border bg-card p-5 transition-all hover:border-accent/50 hover:shadow-md"
+                                        >
+                                            <div className="flex items-start justify-between gap-4">
+                                                <h3 className="font-serif text-lg font-semibold text-card-foreground">
+                                                    {location.name || 'TheZooCoffee'}
+                                                </h3>
+                                                {isPrimary ? (
+                                                    <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
+                                                        Địa chỉ giao hàng
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                            <div className="mt-3 space-y-2">
+                                                <div className="flex items-start gap-3 text-sm text-muted-foreground">
+                                                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                                                    <span>{fullAddress}</span>
+                                                </div>
+                                                {location.phone ? (
+                                                    <div className="flex items-start gap-3 text-sm text-muted-foreground">
+                                                        <Phone className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                                                        <span>{location.phone}</span>
+                                                    </div>
+                                                ) : null}
+                                            </div>
                                         </div>
-                                        <div className="flex items-start gap-3 text-sm text-muted-foreground">
-                                            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                                            <span>{location.hours}</span>
-                                        </div>
-                                        <div className="flex items-start gap-3 text-sm text-muted-foreground">
-                                            <Phone className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                                            <span>{location.phone}</span>
-                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="rounded-xl border border-border bg-card p-5">
+                                    <div className="space-y-2 text-sm text-muted-foreground">
+                                        <p className="font-medium text-foreground">Chưa có địa chỉ cửa hàng</p>
+                                        <p>Admin cần cập nhật địa chỉ cửa hàng trong trang quản trị để hiển thị tại đây.</p>
                                     </div>
                                 </div>
-                            ))}
+                            )}
                         </div>
 
-                        <Button size="lg" className="mt-8 bg-primary text-primary-foreground hover:bg-primary/90">
-                            Chỉ Đường
+                        <Button size="lg" className="mt-8 bg-primary text-primary-foreground hover:bg-primary/90" disabled={!locations.length}>
+                            {locations.length ? 'Xem địa chỉ cửa hàng' : 'Chưa có địa chỉ'}
                         </Button>
                     </div>
                 </div>

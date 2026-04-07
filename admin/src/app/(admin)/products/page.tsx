@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 
 import { SectionCard } from '@/components/section-card';
 import catalogService from '@/services/catalog.service';
@@ -10,6 +10,7 @@ import uploadService from '@/services/upload.service';
 import type { Category, Product } from '@/types/api';
 
 type ProductStatus = 'available' | 'out_of_stock' | 'discontinued';
+
 type ProductFormData = {
     name: string;
     categoryId: string;
@@ -33,7 +34,7 @@ const EMPTY_FORM: ProductFormData = {
 const ITEMS_PER_PAGE = 5;
 
 function formatCurrency(amount: number) {
-    return `${Math.round(amount).toLocaleString('vi-VN')} vnđ`;
+    return `${Math.round(amount).toLocaleString('vi-VN')} vnd`;
 }
 
 function getStatusLabel(status: ProductStatus) {
@@ -60,6 +61,14 @@ export default function ProductsPage() {
     const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
 
+    const closeEditModal = () => {
+        setShowEditModal(false);
+        setEditingProduct(null);
+        setEditFormData(EMPTY_FORM);
+        setSelectedImageFile(null);
+        setUploadedImageUrl('');
+    };
+
     useEffect(() => {
         const loadData = async () => {
             try {
@@ -79,6 +88,19 @@ export default function ProductsPage() {
         void loadData();
     }, []);
 
+    useEffect(() => {
+        if (!showEditModal) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                closeEditModal();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [showEditModal]);
+
     const totalPages = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE));
     const paginatedProducts = useMemo(
         () => products.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
@@ -87,14 +109,6 @@ export default function ProductsPage() {
 
     const resetCreateForm = () => {
         setFormData(EMPTY_FORM);
-        setSelectedImageFile(null);
-        setUploadedImageUrl('');
-    };
-
-    const closeEditModal = () => {
-        setShowEditModal(false);
-        setEditingProduct(null);
-        setEditFormData(EMPTY_FORM);
         setSelectedImageFile(null);
         setUploadedImageUrl('');
     };
@@ -231,22 +245,55 @@ export default function ProductsPage() {
     const handlePageChange = (page: number) => {
         setCurrentPage(page);
         const nextPageItems = products.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
-        if (!nextPageItems.some((item) => item.id === expandedProductId)) setExpandedProductId(null);
+        if (!nextPageItems.some((item) => item.id === expandedProductId)) {
+            setExpandedProductId(null);
+        }
     };
 
     return (
         <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
             <SectionCard title="Tạo Sản Phẩm" description="Sản phẩm được tạo riêng tại đây và liên kết với danh mục đã có.">
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <input type="text" value={formData.name} onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))} className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none" placeholder="Tên sản phẩm" />
+                    <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))}
+                        className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
+                        placeholder="Tên sản phẩm"
+                    />
                     <div className="grid gap-4 md:grid-cols-2">
-                        <select value={formData.categoryId} onChange={(event) => setFormData((prev) => ({ ...prev, categoryId: event.target.value }))} className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none">
+                        <select
+                            value={formData.categoryId}
+                            onChange={(event) => setFormData((prev) => ({ ...prev, categoryId: event.target.value }))}
+                            className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
+                        >
                             <option value="">Chọn danh mục</option>
-                            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                            {categories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                    {category.name}
+                                </option>
+                            ))}
                         </select>
-                        <input type="number" min="0" value={formData.price} onChange={(event) => setFormData((prev) => ({ ...prev, price: event.target.value }))} className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none" placeholder="Giá bán" />
-                        <input type="text" value={formData.sku} onChange={(event) => setFormData((prev) => ({ ...prev, sku: event.target.value }))} className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none" placeholder="Mã SKU" />
-                        <select value={formData.status} onChange={(event) => setFormData((prev) => ({ ...prev, status: event.target.value as ProductStatus }))} className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none">
+                        <input
+                            type="number"
+                            min="0"
+                            value={formData.price}
+                            onChange={(event) => setFormData((prev) => ({ ...prev, price: event.target.value }))}
+                            className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
+                            placeholder="Giá bán"
+                        />
+                        <input
+                            type="text"
+                            value={formData.sku}
+                            onChange={(event) => setFormData((prev) => ({ ...prev, sku: event.target.value }))}
+                            className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
+                            placeholder="Mã SKU"
+                        />
+                        <select
+                            value={formData.status}
+                            onChange={(event) => setFormData((prev) => ({ ...prev, status: event.target.value as ProductStatus }))}
+                            className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
+                        >
                             <option value="available">Đang bán</option>
                             <option value="out_of_stock">Hết hàng</option>
                             <option value="discontinued">Ngừng bán</option>
@@ -255,8 +302,18 @@ export default function ProductsPage() {
                     <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel-strong)] p-4">
                         <p className="text-sm font-semibold text-[var(--foreground)]">Ảnh sản phẩm</p>
                         <div className="mt-3 flex flex-col gap-3">
-                            <input type="file" accept="image/*" onChange={(event) => setSelectedImageFile(event.target.files?.[0] || null)} className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none" />
-                            <button type="button" onClick={handleImageUpload} disabled={!selectedImageFile || isUploadingImage} className="w-fit rounded-2xl border border-[var(--foreground)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] disabled:opacity-60">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(event) => setSelectedImageFile(event.target.files?.[0] || null)}
+                                className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
+                            />
+                            <button
+                                type="button"
+                                onClick={handleImageUpload}
+                                disabled={!selectedImageFile || isUploadingImage}
+                                className="w-fit rounded-2xl border border-[var(--foreground)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] disabled:opacity-60"
+                            >
                                 {isUploadingImage ? 'Đang tải ảnh...' : 'Tải ảnh lên'}
                             </button>
                         </div>
@@ -268,30 +325,58 @@ export default function ProductsPage() {
                             </div>
                         ) : null}
                     </div>
-                    <textarea value={formData.description} onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))} rows={4} className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none" placeholder="Mô tả" />
-                    {errorMessage ? <div className="rounded-2xl border border-[rgba(157,49,49,0.18)] bg-[rgba(157,49,49,0.08)] px-4 py-3 text-sm text-[var(--danger)]">{errorMessage}</div> : null}
-                    {successMessage ? <div className="rounded-2xl border border-[rgba(46,125,91,0.18)] bg-[rgba(46,125,91,0.08)] px-4 py-3 text-sm text-[var(--foreground)]">{successMessage}</div> : null}
-                    <button type="submit" disabled={isSubmitting || categories.length === 0} className="w-full rounded-2xl bg-[var(--foreground)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-70">
+                    <textarea
+                        value={formData.description}
+                        onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
+                        rows={4}
+                        className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
+                        placeholder="Mô tả"
+                    />
+                    {errorMessage ? (
+                        <div className="rounded-2xl border border-[rgba(157,49,49,0.18)] bg-[rgba(157,49,49,0.08)] px-4 py-3 text-sm text-[var(--danger)]">
+                            {errorMessage}
+                        </div>
+                    ) : null}
+                    {successMessage ? (
+                        <div className="rounded-2xl border border-[rgba(46,125,91,0.18)] bg-[rgba(46,125,91,0.08)] px-4 py-3 text-sm text-[var(--foreground)]">
+                            {successMessage}
+                        </div>
+                    ) : null}
+                    <button
+                        type="submit"
+                        disabled={isSubmitting || categories.length === 0}
+                        className="w-full rounded-2xl bg-[var(--foreground)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-70"
+                    >
                         {isSubmitting ? 'Đang tạo sản phẩm...' : 'Thêm Sản Phẩm'}
                     </button>
                 </form>
             </SectionCard>
 
-            <SectionCard title="Danh Sách Sản Phẩm" description="Có phân trang và chỉ hiện detail khi bạn bấm vào sản phẩm.">
+            <SectionCard title="Danh Sách Sản Phẩm" description="Có phân trang và chỉ hiện chi tiết khi bạn bấm vào sản phẩm.">
                 {isLoading ? (
-                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-6 text-sm text-[var(--muted)]">Đang tải sản phẩm...</div>
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-6 text-sm text-[var(--muted)]">
+                        Đang tải sản phẩm...
+                    </div>
                 ) : (
                     <div className="grid gap-3">
                         {paginatedProducts.map((product) => {
                             const isExpanded = expandedProductId === product.id;
                             return (
                                 <div key={product.id} className="rounded-2xl border border-[var(--border)] bg-white p-4">
-                                    <button type="button" onClick={() => setExpandedProductId(isExpanded ? null : product.id)} className="flex w-full items-center justify-between gap-3 text-left">
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpandedProductId(isExpanded ? null : product.id)}
+                                        className="flex w-full items-center justify-between gap-3 text-left"
+                                    >
                                         <div className="flex-1">
                                             <p className="font-medium text-[var(--foreground)]">{product.name}</p>
-                                            <p className="mt-1 text-sm text-[var(--muted)]">{product.categories?.name || 'Chưa phân loại'} - {formatCurrency(product.price)}</p>
+                                            <p className="mt-1 text-sm text-[var(--muted)]">
+                                                {product.categories?.name || 'Chưa phân loại'} - {formatCurrency(product.price)}
+                                            </p>
                                         </div>
-                                        <span className="grid h-10 w-10 place-items-center rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)]">{isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</span>
+                                        <span className="grid h-10 w-10 place-items-center rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)]">
+                                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                        </span>
                                     </button>
                                     {isExpanded ? (
                                         <div className="mt-3 border-t border-[var(--border)] pt-3">
@@ -301,8 +386,21 @@ export default function ProductsPage() {
                                                 {product.description ? <p>Mô tả: {product.description}</p> : null}
                                             </div>
                                             <div className="mt-3 flex gap-2">
-                                                <button onClick={() => openEditModal(product)} className="rounded-2xl border border-[var(--border)] px-4 py-3 text-sm font-semibold text-[var(--foreground)]">Sửa</button>
-                                                <button onClick={() => handleDelete(product)} disabled={isDeleting} className="rounded-2xl border border-[rgba(157,49,49,.18)] px-4 py-3 text-sm font-semibold text-[var(--danger)] disabled:opacity-50">Xóa</button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openEditModal(product)}
+                                                    className="rounded-2xl border border-[var(--border)] px-4 py-3 text-sm font-semibold text-[var(--foreground)]"
+                                                >
+                                                    Sửa
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDelete(product)}
+                                                    disabled={isDeleting}
+                                                    className="rounded-2xl border border-[rgba(157,49,49,.18)] px-4 py-3 text-sm font-semibold text-[var(--danger)] disabled:opacity-50"
+                                                >
+                                                    Xóa
+                                                </button>
                                             </div>
                                         </div>
                                     ) : null}
@@ -311,10 +409,26 @@ export default function ProductsPage() {
                         })}
                         {products.length > 0 ? (
                             <div className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3">
-                                <p className="text-sm text-[var(--muted)]">Trang {currentPage}/{totalPages} • {products.length} sản phẩm</p>
+                                <p className="text-sm text-[var(--muted)]">
+                                    Trang {currentPage}/{totalPages} • {products.length} sản phẩm
+                                </p>
                                 <div className="flex gap-2">
-                                    <button type="button" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="rounded-2xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50">Trang trước</button>
-                                    <button type="button" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="rounded-2xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50">Trang sau</button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className="rounded-2xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                                    >
+                                        Trang trước
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        disabled={currentPage === totalPages}
+                                        className="rounded-2xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                                    >
+                                        Trang sau
+                                    </button>
                                 </div>
                             </div>
                         ) : null}
@@ -323,51 +437,127 @@ export default function ProductsPage() {
             </SectionCard>
 
             {showEditModal && editingProduct ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                    <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-[var(--foreground)]">Sửa sản phẩm</h3>
-                            <button onClick={closeEditModal} className="text-sm text-[var(--muted)]">Đóng</button>
-                        </div>
-                        <form onSubmit={handleEditSubmit} className="mt-6 space-y-4">
-                            <input type="text" value={editFormData.name} onChange={(event) => setEditFormData((prev) => ({ ...prev, name: event.target.value }))} className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none" />
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <select value={editFormData.categoryId} onChange={(event) => setEditFormData((prev) => ({ ...prev, categoryId: event.target.value }))} className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none">
-                                    <option value="">Chọn danh mục</option>
-                                    {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-                                </select>
-                                <input type="number" min="0" value={editFormData.price} onChange={(event) => setEditFormData((prev) => ({ ...prev, price: event.target.value }))} className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none" />
-                            </div>
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <input type="text" value={editFormData.sku} onChange={(event) => setEditFormData((prev) => ({ ...prev, sku: event.target.value }))} className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none" />
-                                <select value={editFormData.status} onChange={(event) => setEditFormData((prev) => ({ ...prev, status: event.target.value as ProductStatus }))} className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none">
-                                    <option value="available">Đang bán</option>
-                                    <option value="out_of_stock">Hết hàng</option>
-                                    <option value="discontinued">Ngừng bán</option>
-                                </select>
-                            </div>
-                            <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel-strong)] p-4">
-                                <p className="text-sm font-semibold text-[var(--foreground)]">Ảnh sản phẩm</p>
-                                <div className="mt-3 flex flex-col gap-3">
-                                    <input type="file" accept="image/*" onChange={(event) => setSelectedImageFile(event.target.files?.[0] || null)} className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none" />
-                                    <button type="button" onClick={handleImageUpload} disabled={!selectedImageFile || isUploadingImage} className="w-fit rounded-2xl border border-[var(--foreground)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] disabled:opacity-60">
-                                        {isUploadingImage ? 'Đang tải ảnh...' : 'Tải ảnh mới'}
-                                    </button>
+                <div className="fixed inset-0 z-50 bg-black/50 p-4 backdrop-blur-sm" onClick={closeEditModal}>
+                    <div className="flex min-h-full items-center justify-center">
+                        <div
+                            className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <button
+                                type="button"
+                                onClick={closeEditModal}
+                                className="absolute right-4 top-4 z-20 grid h-10 w-10 place-items-center rounded-2xl border border-[var(--border)] bg-white text-[var(--muted)] transition hover:text-[var(--foreground)]"
+                                aria-label="Đóng cửa sổ chỉnh sửa"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+
+                            <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-6 flex items-center justify-between rounded-t-2xl border-b border-[var(--border)] bg-white px-6 py-4 pr-20">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-[var(--foreground)]">Sửa sản phẩm</h3>
+                                    <p className="mt-1 text-sm text-[var(--muted)]">
+                                        Bấm Esc, nhấn vào nền tối hoặc dùng nút thoát để đóng form.
+                                    </p>
                                 </div>
-                                {uploadedImageUrl ? (
-                                    <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] p-3">
-                                        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-[var(--panel-strong)]">
-                                            <Image src={uploadedImageUrl} alt="Ảnh sản phẩm" fill className="object-cover" unoptimized />
-                                        </div>
+                            </div>
+
+                            <form onSubmit={handleEditSubmit} className="space-y-4">
+                                <input
+                                    type="text"
+                                    value={editFormData.name}
+                                    onChange={(event) => setEditFormData((prev) => ({ ...prev, name: event.target.value }))}
+                                    className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none"
+                                />
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <select
+                                        value={editFormData.categoryId}
+                                        onChange={(event) => setEditFormData((prev) => ({ ...prev, categoryId: event.target.value }))}
+                                        className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none"
+                                    >
+                                        <option value="">Chọn danh mục</option>
+                                        {categories.map((category) => (
+                                            <option key={category.id} value={category.id}>
+                                                {category.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={editFormData.price}
+                                        onChange={(event) => setEditFormData((prev) => ({ ...prev, price: event.target.value }))}
+                                        className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none"
+                                    />
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <input
+                                        type="text"
+                                        value={editFormData.sku}
+                                        onChange={(event) => setEditFormData((prev) => ({ ...prev, sku: event.target.value }))}
+                                        className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none"
+                                    />
+                                    <select
+                                        value={editFormData.status}
+                                        onChange={(event) => setEditFormData((prev) => ({ ...prev, status: event.target.value as ProductStatus }))}
+                                        className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none"
+                                    >
+                                        <option value="available">Đang bán</option>
+                                        <option value="out_of_stock">Hết hàng</option>
+                                        <option value="discontinued">Ngừng bán</option>
+                                    </select>
+                                </div>
+                                <div className="rounded-3xl border border-[var(--border)] bg-[var(--panel-strong)] p-4">
+                                    <p className="text-sm font-semibold text-[var(--foreground)]">Ảnh sản phẩm</p>
+                                    <div className="mt-3 flex flex-col gap-3">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(event) => setSelectedImageFile(event.target.files?.[0] || null)}
+                                            className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleImageUpload}
+                                            disabled={!selectedImageFile || isUploadingImage}
+                                            className="w-fit rounded-2xl border border-[var(--foreground)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] disabled:opacity-60"
+                                        >
+                                            {isUploadingImage ? 'Đang tải ảnh...' : 'Tải ảnh mới'}
+                                        </button>
                                     </div>
-                                ) : null}
-                            </div>
-                            <textarea value={editFormData.description} onChange={(event) => setEditFormData((prev) => ({ ...prev, description: event.target.value }))} rows={3} className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none" />
-                            <div className="flex gap-3">
-                                <button type="submit" disabled={isSubmitting} className="flex-1 rounded-2xl bg-[var(--foreground)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-70">{isSubmitting ? 'Đang lưu...' : 'Cập nhật'}</button>
-                                <button type="button" onClick={closeEditModal} className="flex-1 rounded-2xl border border-[var(--border)] px-4 py-3 text-sm font-semibold">Hủy</button>
-                            </div>
-                        </form>
+                                    {uploadedImageUrl ? (
+                                        <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] p-3">
+                                            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-[var(--panel-strong)]">
+                                                <Image src={uploadedImageUrl} alt="Ảnh sản phẩm" fill className="object-cover" unoptimized />
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </div>
+                                <textarea
+                                    value={editFormData.description}
+                                    onChange={(event) => setEditFormData((prev) => ({ ...prev, description: event.target.value }))}
+                                    rows={3}
+                                    className="w-full rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 text-sm outline-none"
+                                />
+                                <div className="sticky bottom-0 -mx-6 -mb-6 mt-6 border-t border-[var(--border)] bg-white px-6 py-4">
+                                    <div className="flex gap-3">
+                                        <button
+                                            type="submit"
+                                            disabled={isSubmitting}
+                                            className="flex-1 rounded-2xl bg-[var(--foreground)] px-4 py-3 text-sm font-semibold text-white disabled:opacity-70"
+                                        >
+                                            {isSubmitting ? 'Đang lưu...' : 'Cập nhật'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={closeEditModal}
+                                            className="flex-1 rounded-2xl border border-[var(--border)] px-4 py-3 text-sm font-semibold"
+                                        >
+                                            Thoát chỉnh sửa
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             ) : null}

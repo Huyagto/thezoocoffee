@@ -28,10 +28,10 @@ function ensureNonNegativeNumber(value, message) {
 
 const validateAddToCart = (req, res, next) => {
     try {
-        ensurePositiveInteger(req.body.productId, 'productId khong hop le');
+        ensurePositiveInteger(req.body.productId, 'productId không hợp lệ');
 
         if (req.body.quantity !== undefined) {
-            ensurePositiveInteger(req.body.quantity, 'So luong san pham khong hop le');
+            ensurePositiveInteger(req.body.quantity, 'Số lượng sản phẩm không hợp lệ');
         }
 
         next();
@@ -42,12 +42,12 @@ const validateAddToCart = (req, res, next) => {
 
 const validateUpdateCartQuantity = (req, res, next) => {
     try {
-        ensurePositiveInteger(req.params.id, 'ID san pham khong hop le');
+        ensurePositiveInteger(req.params.id, 'ID sản phẩm không hợp lệ');
 
         const quantity = Number(req.body.quantity);
 
         if (!Number.isInteger(quantity) || quantity < 0) {
-            throw new BadRequestError('So luong cap nhat khong hop le');
+            throw new BadRequestError('Số lượng cập nhật không hợp lệ');
         }
 
         next();
@@ -61,18 +61,14 @@ const validateCheckout = (req, res, next) => {
         const { shippingInfo, paymentMethod, items, couponCode } = req.body;
 
         if (!shippingInfo || typeof shippingInfo !== 'object' || Array.isArray(shippingInfo)) {
-            throw new BadRequestError('Thong tin giao hang khong hop le');
+            throw new BadRequestError('Thông tin giao hàng không hợp lệ');
         }
 
         const requiredShippingFields = [
-            ['fullName', 'Ho ten nguoi nhan la bat buoc'],
-            ['phone', 'So dien thoai nguoi nhan la bat buoc'],
-            ['email', 'Email nguoi nhan la bat buoc'],
-            ['address', 'Dia chi giao hang la bat buoc'],
-            ['provinceName', 'Tinh thanh la bat buoc'],
-            ['districtName', 'Quan huyen la bat buoc'],
-            ['wardName', 'Phuong xa la bat buoc'],
-            ['toWardCode', 'toWardCode khong hop le'],
+            ['fullName', 'Họ tên người nhận là bắt buộc'],
+            ['phone', 'Số điện thoại người nhận là bắt buộc'],
+            ['email', 'Email người nhận là bắt buộc'],
+            ['address', 'Địa chỉ giao hàng là bắt buộc'],
         ];
 
         requiredShippingFields.forEach(([field, message]) => {
@@ -82,38 +78,36 @@ const validateCheckout = (req, res, next) => {
         });
 
         if (!phoneRegex.test(String(shippingInfo.phone).trim())) {
-            throw new UnprocessableEntityError('So dien thoai nguoi nhan khong hop le');
+            throw new UnprocessableEntityError('Số điện thoại người nhận không hợp lệ');
         }
 
         if (!emailRegex.test(String(shippingInfo.email).trim())) {
-            throw new UnprocessableEntityError('Email nguoi nhan khong hop le');
+            throw new UnprocessableEntityError('Email người nhận không hợp lệ');
         }
 
         if (String(shippingInfo.address).trim().length < 5) {
-            throw new BadRequestError('Dia chi giao hang qua ngan');
+            throw new BadRequestError('Địa chỉ giao hàng quá ngắn');
         }
 
-        ensurePositiveInteger(shippingInfo.toDistrictId, 'toDistrictId khong hop le');
-
         if (shippingInfo.note !== undefined && String(shippingInfo.note).trim().length > 500) {
-            throw new BadRequestError('Ghi chu qua dai');
+            throw new BadRequestError('Ghi chú quá dài');
         }
 
         if (!validPaymentMethods.includes(String(paymentMethod || '').toLowerCase())) {
-            throw new BadRequestError('Phuong thuc thanh toan khong hop le');
+            throw new BadRequestError('Phương thức thanh toán không hợp lệ');
         }
 
         if (!Array.isArray(items) || items.length === 0) {
-            throw new BadRequestError('Don hang phai co it nhat mot san pham');
+            throw new BadRequestError('Đơn hàng phải có ít nhất một sản phẩm');
         }
 
         items.forEach((item, index) => {
-            ensurePositiveInteger(item?.productId, `productId tai vi tri ${index + 1} khong hop le`);
-            ensurePositiveInteger(item?.quantity, `So luong tai vi tri ${index + 1} khong hop le`);
+            ensurePositiveInteger(item?.productId, `productId tại vị trí ${index + 1} không hợp lệ`);
+            ensurePositiveInteger(item?.quantity, `Số lượng tại vị trí ${index + 1} không hợp lệ`);
         });
 
         if (couponCode !== undefined && couponCode !== null && String(couponCode).trim().length > 50) {
-            throw new BadRequestError('Ma giam gia khong hop le');
+            throw new BadRequestError('Mã giảm giá không hợp lệ');
         }
 
         next();
@@ -127,10 +121,10 @@ const validateCouponCode = (req, res, next) => {
         const { code, subtotal } = req.body;
 
         if (!String(code || '').trim()) {
-            throw new BadRequestError('Ma giam gia la bat buoc');
+            throw new BadRequestError('Mã giảm giá là bắt buộc');
         }
 
-        ensureNonNegativeNumber(subtotal, 'Subtotal khong hop le');
+        ensureNonNegativeNumber(subtotal, 'Subtotal không hợp lệ');
         next();
     } catch (error) {
         next(error);
@@ -139,16 +133,16 @@ const validateCouponCode = (req, res, next) => {
 
 const validateCreatePayment = (req, res, next) => {
     try {
-        ensurePositiveInteger(req.params.orderId || req.body.orderId, 'ID don hang khong hop le');
+        ensurePositiveInteger(req.params.orderId || req.body.orderId, 'ID đơn hàng không hợp lệ');
 
         const paymentMethod = String(req.body.paymentMethod || req.body.typePayment || '').toLowerCase();
 
         if (!validPaymentMethods.includes(paymentMethod)) {
-            throw new BadRequestError('Phuong thuc thanh toan khong hop le');
+            throw new BadRequestError('Phương thức thanh toán không hợp lệ');
         }
 
         if (paymentMethod === 'cod') {
-            throw new BadRequestError('COD khong can tao lien ket thanh toan');
+            throw new BadRequestError('COD không cần tạo liên kết thanh toán');
         }
 
         next();
@@ -159,28 +153,16 @@ const validateCreatePayment = (req, res, next) => {
 
 const validateShippingFeeQuote = (req, res, next) => {
     try {
-        const { toDistrictId, toWardCode, items, insuranceValue } = req.body;
+        const { customerLatitude, customerLongitude } = req.body;
+        const latitude = Number(customerLatitude);
+        const longitude = Number(customerLongitude);
 
-        ensurePositiveInteger(toDistrictId, 'toDistrictId khong hop le');
-
-        if (!String(toWardCode || '').trim()) {
-            throw new BadRequestError('toWardCode la bat buoc');
+        if (Number.isNaN(latitude) || latitude < -90 || latitude > 90) {
+            throw new BadRequestError('customerLatitude không hợp lệ');
         }
 
-        if (!Array.isArray(items) || items.length === 0) {
-            throw new BadRequestError('Danh sach san pham tinh phi giao hang khong hop le');
-        }
-
-        items.forEach((item, index) => {
-            if (!String(item?.name || '').trim()) {
-                throw new BadRequestError(`Ten san pham tai vi tri ${index + 1} khong hop le`);
-            }
-
-            ensurePositiveInteger(item?.quantity, `So luong san pham tai vi tri ${index + 1} khong hop le`);
-        });
-
-        if (insuranceValue !== undefined && insuranceValue !== null) {
-            ensureNonNegativeNumber(insuranceValue, 'insuranceValue khong hop le');
+        if (Number.isNaN(longitude) || longitude < -180 || longitude > 180) {
+            throw new BadRequestError('customerLongitude không hợp lệ');
         }
 
         next();

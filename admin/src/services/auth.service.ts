@@ -39,11 +39,8 @@ const authService = {
     name: string
     phone?: string
     address?: string
-    provinceName?: string
-    districtName?: string
-    wardName?: string
-    toDistrictId?: number | null
-    toWardCode?: string | null
+    latitude?: number | null
+    longitude?: number | null
   }): Promise<User> {
     const response = await axiosInstance.put<ApiResponse<User>>(
       "/user/profile",

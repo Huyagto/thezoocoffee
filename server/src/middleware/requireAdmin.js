@@ -6,7 +6,7 @@ const requireAdmin = async (req, res, next) => {
         const userId = req.user?.id;
 
         if (!userId) {
-            throw new AuthFailureError('Vui long dang nhap');
+            throw new AuthFailureError('Vui lòng đăng nhập');
         }
 
         const currentUser = await prisma.users.findUnique({
@@ -15,7 +15,7 @@ const requireAdmin = async (req, res, next) => {
         });
 
         if (!currentUser) {
-            throw new AuthFailureError('Nguoi dung khong ton tai');
+            throw new AuthFailureError('Người dùng không tồn tại');
         }
 
         if (currentUser.role !== 'admin') {

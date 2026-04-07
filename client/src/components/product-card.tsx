@@ -2,12 +2,10 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Check, Plus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/cart-context';
-import { useAuth } from '@/context/auth-context';
 import { toast } from '@/hooks/use-toast';
 
 interface ProductCardProps {
@@ -20,29 +18,21 @@ interface ProductCardProps {
     priority?: boolean;
 }
 
+function parsePrice(price: string) {
+    return Number(String(price).replace(/[^\d]/g, '')) || 0;
+}
+
 export function ProductCard({ id, name, description, price, image, badge, priority = false }: ProductCardProps) {
     const { addToCart } = useCart();
-    const { user } = useAuth();
-    const router = useRouter();
     const [isAdded, setIsAdded] = useState(false);
 
     const handleAddToCart = async () => {
-        if (!user) {
-            toast({
-                title: 'Đăng nhập yêu cầu',
-                description: 'Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.',
-                variant: 'destructive',
-            });
-            router.push('/login');
-            return;
-        }
-
         try {
             await addToCart({
                 id,
                 name,
                 description,
-                price: 0,
+                price: parsePrice(price),
                 image,
             });
 

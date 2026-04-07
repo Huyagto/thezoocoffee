@@ -18,6 +18,28 @@ const AUTH_ENDPOINTS = {
   GOOGLE: "/user/google",
 }
 
+const resolveApiBaseUrl = () => {
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_URL?.trim()
+
+  if (!configuredBaseUrl) {
+    return "http://localhost:5000/api"
+  }
+
+  const isRelativeApiPath = configuredBaseUrl.startsWith("/")
+
+  if (isRelativeApiPath && typeof window !== "undefined") {
+    const { hostname } = window.location
+    const isLocalHost =
+      hostname === "localhost" || hostname === "127.0.0.1"
+
+    if (isLocalHost) {
+      return "http://localhost:5000/api"
+    }
+  }
+
+  return configuredBaseUrl
+}
+
 const getPayload = <T>(response: ApiResponse<T>): T => response.metadata ?? response.data!
 
 export const authService = {
@@ -54,11 +76,8 @@ export const authService = {
     name: string
     phone?: string
     address?: string
-    provinceName?: string
-    districtName?: string
-    wardName?: string
-    toDistrictId?: number
-    toWardCode?: string
+    latitude?: number
+    longitude?: number
   }): Promise<User> {
     const response = await axiosInstance.put<ApiResponse<User>>(
       AUTH_ENDPOINTS.UPDATE_PROFILE,
@@ -94,8 +113,7 @@ export const authService = {
   },
 
   loginWithGoogle(): void {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+    const baseUrl = resolveApiBaseUrl()
 
     window.location.href = `${baseUrl}${AUTH_ENDPOINTS.GOOGLE}`
   },

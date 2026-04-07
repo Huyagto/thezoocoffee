@@ -6,11 +6,8 @@ export interface User {
   role?: string
   phone?: string
   address?: string
-  province_name?: string
-  district_name?: string
-  ward_name?: string
-  to_district_id?: number | null
-  to_ward_code?: string | null
+  latitude?: number | null
+  longitude?: number | null
   avatar?: string
   createdAt?: string
   updatedAt?: string
@@ -27,11 +24,8 @@ export interface RegisterData {
   name: string
   phone?: string
   address?: string
-  provinceName?: string
-  districtName?: string
-  wardName?: string
-  toDistrictId?: number
-  toWardCode?: string
+  latitude?: number
+  longitude?: number
 }
 
 export type AuthResponse = User
@@ -116,9 +110,9 @@ export type PaymentMethod = "cod" | "vnpay" | "momo" | "zalopay"
 export type OrderStatus =
   | "pending"
   | "confirmed"
-  | "processing"
-  | "shipped"
-  | "delivered"
+  | "preparing"
+  | "shipping"
+  | "completed"
   | "cancelled"
 
 export interface OrderItem {
@@ -134,36 +128,27 @@ export interface ShippingInfo {
   phone: string
   email: string
   address: string
-  provinceName: string
-  districtName: string
-  wardName: string
-  toDistrictId: number
-  toWardCode: string
+  latitude?: number
+  longitude?: number
   note?: string
-}
-
-export interface ShippingProvince {
-  ProvinceID: number
-  ProvinceName: string
-}
-
-export interface ShippingDistrict {
-  DistrictID: number
-  ProvinceID: number
-  DistrictName: string
-}
-
-export interface ShippingWard {
-  WardCode: string
-  DistrictID: number
-  WardName: string
 }
 
 export interface ShippingQuote {
   shippingFee: number
-  serviceId: number
-  serviceTypeId: number
   serviceName: string
+  distanceKm?: number
+}
+
+export interface StoreLocation {
+  id?: number
+  admin_user_id?: number
+  name: string
+  phone?: string | null
+  address: string
+  latitude?: number | null
+  longitude?: number | null
+  is_primary?: boolean
+  updated_at?: string
 }
 
 export interface CheckoutItem {
@@ -204,7 +189,7 @@ export interface Order {
   total_amount: number | string
   shipping_address: string
   note?: string | null
-  order_status: "pending" | "confirmed" | "preparing" | "completed" | "cancelled"
+  order_status: "pending" | "confirmed" | "preparing" | "shipping" | "completed" | "cancelled"
   payment_status: "unpaid" | "paid" | "failed" | "refunded"
   payment_method?: "cash" | "momo" | "banking" | "zalopay" | "vnpay" | null
   created_at?: string
@@ -268,4 +253,24 @@ export interface ApiError {
   success: false
   message: string
   errors?: Record<string, string[]>
+}
+
+export interface Notification {
+  id: number
+  user_id?: number | null
+  order_id?: number | null
+  audience: "admin" | "user"
+  type: string
+  title: string
+  message: string
+  is_read?: boolean | null
+  read_at?: string | null
+  created_at?: string
+  updated_at?: string
+  orders?: {
+    id: number
+    order_code: string
+    order_status: Order["order_status"]
+    payment_status: Order["payment_status"]
+  } | null
 }
