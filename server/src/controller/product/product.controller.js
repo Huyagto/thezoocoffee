@@ -614,17 +614,33 @@ class ProductController {
             throw new NotFoundError('Sản phẩm không tồn tại');
         }
 
-        const [orderCount, cartCount] = await prisma.$transaction([
-            prisma.order_items.count({ where: { product_id: productId } }),
-            prisma.cart_items.count({ where: { product_id: productId } }),
-        ]);
+        const orderCount = await prisma.order_items.count({
+            where: {
+                product_id: productId,
+                orders: {
+                    order_status: {
+                        in: ['confirmed', 'preparing'],
+                    },
+                },
+            },
+        });
 
-        if (orderCount > 0 || cartCount > 0) {
+        if (orderCount > 0) {
             throw new BadRequestError('Không thể xóa sản phẩm đang được sử dụng trong đơn hàng/giỏ hàng/công thức');
         }
 
-        await prisma.products.delete({
-            where: { id: productId },
+        await prisma.$transaction(async (tx) => {
+            await tx.cart_items.deleteMany({
+                where: { product_id: productId },
+            });
+
+            await tx.recipes.deleteMany({
+                where: { product_id: productId },
+            });
+
+            await tx.products.delete({
+                where: { id: productId },
+            });
         });
 
         new OK({

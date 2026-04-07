@@ -34,6 +34,24 @@ const authService = {
   async logout(): Promise<void> {
     await axiosInstance.get(AUTH_ENDPOINTS.LOGOUT)
   },
+
+  async updateProfile(data: {
+    name: string
+    phone?: string
+    address?: string
+    provinceName?: string
+    districtName?: string
+    wardName?: string
+    toDistrictId?: number | null
+    toWardCode?: string | null
+  }): Promise<User> {
+    const response = await axiosInstance.put<ApiResponse<User>>(
+      "/user/profile",
+      data
+    )
+
+    return getPayload(response.data)
+  },
 }
 
 export default authService

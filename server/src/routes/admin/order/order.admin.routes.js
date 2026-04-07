@@ -12,6 +12,5 @@ router.use(authUser, requireAdmin);
 router.get('/', asyncHandler(orderAdminController.getOrders));
 router.patch('/:id/status', validateOrderStatus, asyncHandler(orderAdminController.updateOrderStatus));
 router.patch('/:id/payment', validatePaymentStatus, asyncHandler(orderAdminController.updatePaymentStatus));
-router.delete('/:id', asyncHandler(orderAdminController.deleteOrder));
 
 module.exports = router;

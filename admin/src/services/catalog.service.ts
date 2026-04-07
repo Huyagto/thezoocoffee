@@ -166,10 +166,6 @@ const catalogService = {
         return normalizeOrder(getPayload(response.data) as Order & { users?: Order['user'] });
     },
 
-    async deleteOrder(id: number): Promise<void> {
-        await axiosInstance.delete(`/admin/orders/${id}`);
-    },
-
     async updateCategory(id: number, data: Partial<Category>): Promise<Category> {
         const response = await axiosInstance.put<ApiResponse<Category>>(`/admin/categories/${id}`, data);
         return getPayload(response.data);

@@ -1,4 +1,5 @@
 const axios = require('axios');
+const prisma = require('../config/prisma');
 
 const GHN_BASE_URL = process.env.GHN_BASE_URL || 'https://online-gateway.ghn.vn/shiip/public-api';
 const DEFAULT_SERVICE_TYPE_ID = Number(process.env.GHN_SERVICE_TYPE_ID || 2);
@@ -52,6 +53,30 @@ async function resolveShopConfig() {
     let fromDistrictId = Number(process.env.GHN_FROM_DISTRICT_ID || 0);
     let fromWardCode = process.env.GHN_FROM_WARD_CODE?.trim() || '';
 
+    const configuredAdmin = await prisma.users.findFirst({
+        where: {
+            role: 'admin',
+            to_district_id: {
+                not: null,
+            },
+            to_ward_code: {
+                not: null,
+            },
+        },
+        orderBy: {
+            updated_at: 'desc',
+        },
+        select: {
+            to_district_id: true,
+            to_ward_code: true,
+        },
+    });
+
+    if (configuredAdmin?.to_district_id && configuredAdmin?.to_ward_code?.trim()) {
+        fromDistrictId = Number(configuredAdmin.to_district_id);
+        fromWardCode = configuredAdmin.to_ward_code.trim();
+    }
+
     if (!shopId || !fromDistrictId || !fromWardCode) {
         const shopData = await ghnRequest({
             method: 'POST',
@@ -97,6 +122,10 @@ async function resolveShopConfig() {
     };
 
     return cachedShopConfig;
+}
+
+function clearShopConfigCache() {
+    cachedShopConfig = null;
 }
 
 function buildParcelMetrics(items = []) {
@@ -217,5 +246,6 @@ module.exports = {
     getWards,
     getShippingFeeQuote,
     resolveShopConfig,
+    clearShopConfigCache,
     normalizeGhnError,
 };

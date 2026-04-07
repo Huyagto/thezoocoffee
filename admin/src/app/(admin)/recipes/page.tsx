@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 
 import { SectionCard } from '@/components/section-card';
 import catalogService from '@/services/catalog.service';
@@ -13,6 +13,13 @@ interface RecipeInput {
     quantityUsed: string;
 }
 
+interface GroupedRecipe {
+    product: NonNullable<Recipe['products']>;
+    ingredients: Recipe[];
+}
+
+const RECIPES_PER_PAGE = 5;
+
 function displayNumber(value: number | string | null | undefined) {
     if (value === null || value === undefined || value === '') {
         return '0';
@@ -21,31 +28,47 @@ function displayNumber(value: number | string | null | undefined) {
     return String(value);
 }
 
+function createEmptyRecipeRow(): RecipeInput {
+    return {
+        id: crypto.randomUUID(),
+        inventoryId: '',
+        quantityUsed: '',
+    };
+}
+
 export default function RecipesPage() {
     const [products, setProducts] = useState<Product[]>([]);
     const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
     const [recipesList, setRecipesList] = useState<Recipe[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSavingRecipe, setIsSavingRecipe] = useState<number | null>(null);
+    const [isDeletingRecipe, setIsDeletingRecipe] = useState<number | null>(null);
     const [errorMessage, setErrorMessage] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [selectedProductId, setSelectedProductId] = useState('');
-    const [recipes, setRecipes] = useState<RecipeInput[]>([
-        { id: crypto.randomUUID(), inventoryId: '', quantityUsed: '' },
-    ]);
+    const [editingRecipeId, setEditingRecipeId] = useState<number | null>(null);
+    const [editingQuantity, setEditingQuantity] = useState('');
+    const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [recipes, setRecipes] = useState<RecipeInput[]>([createEmptyRecipeRow()]);
+
+    const loadData = async () => {
+        const [productsResponse, inventoryResponse, recipesResponse] = await Promise.all([
+            catalogService.getProducts(),
+            catalogService.getInventory(),
+            catalogService.getRecipes(),
+        ]);
+
+        setProducts(productsResponse);
+        setInventoryItems(inventoryResponse);
+        setRecipesList(recipesResponse);
+    };
 
     useEffect(() => {
-        const loadData = async () => {
+        const initialize = async () => {
             try {
-                const [productsResponse, inventoryResponse, recipesResponse] = await Promise.all([
-                    catalogService.getProducts(),
-                    catalogService.getInventory(),
-                    catalogService.getRecipes(),
-                ]);
-
-                setProducts(productsResponse);
-                setInventoryItems(inventoryResponse);
-                setRecipesList(recipesResponse);
+                await loadData();
             } catch (error) {
                 setErrorMessage(error instanceof Error ? error.message : 'Không thể tải dữ liệu công thức.');
             } finally {
@@ -53,11 +76,57 @@ export default function RecipesPage() {
             }
         };
 
-        loadData();
+        void initialize();
     }, []);
 
+    const groupedRecipes = useMemo(() => {
+        return Object.values(
+            recipesList.reduce<Record<number, GroupedRecipe>>((accumulator, recipe) => {
+                const product = recipe.products;
+
+                if (!product) {
+                    return accumulator;
+                }
+
+                if (!accumulator[product.id]) {
+                    accumulator[product.id] = {
+                        product,
+                        ingredients: [],
+                    };
+                }
+
+                accumulator[product.id].ingredients.push(recipe);
+                return accumulator;
+            }, {}),
+        );
+    }, [recipesList]);
+
+    const totalPages = Math.max(1, Math.ceil(groupedRecipes.length / RECIPES_PER_PAGE));
+    const paginatedGroups = groupedRecipes.slice(
+        (currentPage - 1) * RECIPES_PER_PAGE,
+        currentPage * RECIPES_PER_PAGE,
+    );
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
+
+    useEffect(() => {
+        if (!expandedProductId) {
+            return;
+        }
+
+        const expandedStillExists = groupedRecipes.some((group) => group.product.id === expandedProductId);
+
+        if (!expandedStillExists) {
+            setExpandedProductId(null);
+        }
+    }, [expandedProductId, groupedRecipes]);
+
     const addRecipeRow = () => {
-        setRecipes((prev) => [...prev, { id: crypto.randomUUID(), inventoryId: '', quantityUsed: '' }]);
+        setRecipes((prev) => [...prev, createEmptyRecipeRow()]);
     };
 
     const removeRecipeRow = (id: string) => {
@@ -66,6 +135,11 @@ export default function RecipesPage() {
 
     const updateRecipeRow = (id: string, field: 'inventoryId' | 'quantityUsed', value: string) => {
         setRecipes((prev) => prev.map((recipe) => (recipe.id === id ? { ...recipe, [field]: value } : recipe)));
+    };
+
+    const resetForm = () => {
+        setSelectedProductId('');
+        setRecipes([createEmptyRecipeRow()]);
     };
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -105,15 +179,105 @@ export default function RecipesPage() {
             });
 
             setProducts((prev) => prev.map((product) => (product.id === updatedProduct.id ? updatedProduct : product)));
-
-            const refreshedRecipes = await catalogService.getRecipes();
-            setRecipesList(refreshedRecipes);
-            setRecipes([{ id: crypto.randomUUID(), inventoryId: '', quantityUsed: '' }]);
+            await loadData();
+            resetForm();
+            setExpandedProductId(Number(selectedProductId));
             setSuccessMessage('Lưu công thức thành công.');
         } catch (error) {
             setErrorMessage(error instanceof Error ? error.message : 'Không thể lưu công thức.');
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const startEditingRecipe = (recipe: Recipe) => {
+        setEditingRecipeId(recipe.id);
+        setEditingQuantity(String(recipe.quantity_used));
+        setErrorMessage('');
+        setSuccessMessage('');
+    };
+
+    const cancelEditingRecipe = () => {
+        setEditingRecipeId(null);
+        setEditingQuantity('');
+    };
+
+    const handleUpdateRecipe = async (recipeId: number) => {
+        const quantity = Number(editingQuantity);
+
+        if (Number.isNaN(quantity) || quantity <= 0) {
+            setErrorMessage('Số lượng sử dụng phải lớn hơn 0.');
+            return;
+        }
+
+        setIsSavingRecipe(recipeId);
+        setErrorMessage('');
+        setSuccessMessage('');
+
+        try {
+            const updatedRecipe = await catalogService.updateRecipe(recipeId, {
+                quantity_used: quantity,
+            });
+
+            setRecipesList((prev) =>
+                prev.map((recipe) =>
+                    recipe.id === recipeId
+                        ? {
+                              ...recipe,
+                              ...updatedRecipe,
+                              products: recipe.products ?? updatedRecipe.products,
+                              inventory: recipe.inventory ?? updatedRecipe.inventory,
+                          }
+                        : recipe,
+                ),
+            );
+            setSuccessMessage('Đã cập nhật nguyên liệu trong công thức.');
+            cancelEditingRecipe();
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : 'Không thể cập nhật công thức.');
+        } finally {
+            setIsSavingRecipe(null);
+        }
+    };
+
+    const handleDeleteRecipe = async (recipe: Recipe) => {
+        if (!confirm(`Xóa nguyên liệu "${recipe.inventory.name}" khỏi công thức "${recipe.products?.name ?? 'sản phẩm'}"?`)) {
+            return;
+        }
+
+        setIsDeletingRecipe(recipe.id);
+        setErrorMessage('');
+        setSuccessMessage('');
+
+        try {
+            await catalogService.deleteRecipe(recipe.id);
+            setRecipesList((prev) => prev.filter((item) => item.id !== recipe.id));
+
+            if (editingRecipeId === recipe.id) {
+                cancelEditingRecipe();
+            }
+
+            setSuccessMessage('Đã xóa nguyên liệu khỏi công thức.');
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : 'Không thể xóa công thức.');
+        } finally {
+            setIsDeletingRecipe(null);
+        }
+    };
+
+    const toggleExpandedProduct = (productId: number) => {
+        setExpandedProductId((prev) => (prev === productId ? null : productId));
+        cancelEditingRecipe();
+    };
+
+    const handlePageChange = (nextPage: number) => {
+        setCurrentPage(nextPage);
+        cancelEditingRecipe();
+
+        const nextGroups = groupedRecipes.slice((nextPage - 1) * RECIPES_PER_PAGE, nextPage * RECIPES_PER_PAGE);
+
+        if (!nextGroups.some((group) => group.product.id === expandedProductId)) {
+            setExpandedProductId(null);
         }
     };
 
@@ -240,7 +404,7 @@ export default function RecipesPage() {
 
             <SectionCard
                 title="Danh Sách Công Thức"
-                description="Công thức được quản lý độc lập với sản phẩm và kho nguyên liệu."
+                description="Danh sách được phân trang, và chỉ hiện chi tiết nguyên liệu khi bạn bấm vào món tương ứng."
             >
                 {isLoading ? (
                     <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-6 text-sm text-[var(--muted)]">
@@ -248,49 +412,143 @@ export default function RecipesPage() {
                     </div>
                 ) : (
                     <div className="grid gap-3">
-                        {(() => {
-                            const groupedRecipes = recipesList.reduce(
-                                (acc, recipe) => {
-                                    const productId = recipe.products?.id;
-                                    if (!productId) return acc;
-                                    if (!acc[productId]) {
-                                        acc[productId] = {
-                                            product: recipe.products,
-                                            ingredients: [],
-                                        };
-                                    }
-                                    acc[productId].ingredients.push({
-                                        name: recipe.inventory.name,
-                                        quantity: recipe.quantity_used,
-                                        unit: recipe.inventory.unit,
-                                    });
-                                    return acc;
-                                },
-                                {} as Record<number, { product: any; ingredients: any[] }>,
-                            );
+                        {paginatedGroups.map((group) => {
+                            const isExpanded = expandedProductId === group.product.id;
 
-                            return Object.values(groupedRecipes).map((group) => (
-                                <div
-                                    key={group.product.id}
-                                    className="rounded-2xl border border-[var(--border)] bg-white p-4"
-                                >
-                                    <p className="font-medium text-[var(--foreground)]">{group.product.name}</p>
-                                    <p className="mt-1 text-xs text-[var(--muted)]">
-                                        SKU: {group.product.sku || 'Chưa có SKU'}
-                                    </p>
-                                    <div className="mt-2">
-                                        <p className="text-sm font-medium text-[var(--foreground)]">Nguyên liệu:</p>
-                                        <ul className="mt-1 space-y-1">
-                                            {group.ingredients.map((ingredient, idx) => (
-                                                <li key={idx} className="text-sm text-[var(--muted)]">
-                                                    {ingredient.name} - {ingredient.quantity} {ingredient.unit}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
+                            return (
+                                <div key={group.product.id} className="rounded-2xl border border-[var(--border)] bg-white p-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleExpandedProduct(group.product.id)}
+                                        className="flex w-full items-center justify-between gap-3 text-left"
+                                    >
+                                        <div className="min-w-0">
+                                            <p className="font-medium text-[var(--foreground)]">{group.product.name}</p>
+                                            <p className="mt-1 text-xs text-[var(--muted)]">
+                                                SKU: {group.product.sku || 'Chưa có SKU'} • {group.ingredients.length} nguyên liệu
+                                            </p>
+                                        </div>
+                                        <span className="grid h-10 w-10 place-items-center rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] text-[var(--foreground)]">
+                                            {isExpanded ? (
+                                                <ChevronDown className="h-4 w-4" />
+                                            ) : (
+                                                <ChevronRight className="h-4 w-4" />
+                                            )}
+                                        </span>
+                                    </button>
+
+                                    {isExpanded ? (
+                                        <div className="mt-3 space-y-2 border-t border-[var(--border)] pt-3">
+                                            {group.ingredients.map((ingredient) => {
+                                                const isEditing = editingRecipeId === ingredient.id;
+
+                                                return (
+                                                    <div
+                                                        key={ingredient.id}
+                                                        className="rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] p-3"
+                                                    >
+                                                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                                            <div>
+                                                                <p className="text-sm font-semibold text-[var(--foreground)]">
+                                                                    {ingredient.inventory.name}
+                                                                </p>
+                                                                <p className="mt-1 text-sm text-[var(--muted)]">
+                                                                    Đơn vị: {ingredient.inventory.unit}
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="flex flex-col gap-2 md:items-end">
+                                                                {isEditing ? (
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            step="0.01"
+                                                                            value={editingQuantity}
+                                                                            onChange={(event) => setEditingQuantity(event.target.value)}
+                                                                            className="w-32 rounded-2xl border border-[var(--border)] bg-white px-3 py-2 text-sm outline-none"
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleUpdateRecipe(ingredient.id)}
+                                                                            disabled={isSavingRecipe === ingredient.id}
+                                                                            className="flex items-center gap-2 rounded-2xl bg-[var(--foreground)] px-3 py-2 text-sm font-semibold text-white transition hover:opacity-92 disabled:cursor-not-allowed disabled:opacity-60"
+                                                                        >
+                                                                            <Save className="h-4 w-4" />
+                                                                            {isSavingRecipe === ingredient.id ? 'Đang lưu...' : 'Lưu'}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={cancelEditingRecipe}
+                                                                            className="flex items-center gap-2 rounded-2xl border border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-white"
+                                                                        >
+                                                                            <X className="h-4 w-4" />
+                                                                            Hủy
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-sm text-[var(--muted)]">
+                                                                        Số lượng dùng: {ingredient.quantity_used} {ingredient.inventory.unit}
+                                                                    </p>
+                                                                )}
+
+                                                                {!isEditing ? (
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => startEditingRecipe(ingredient)}
+                                                                            className="flex items-center gap-2 rounded-2xl border border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-white"
+                                                                        >
+                                                                            <Pencil className="h-4 w-4" />
+                                                                            Sửa
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleDeleteRecipe(ingredient)}
+                                                                            disabled={isDeletingRecipe === ingredient.id}
+                                                                            className="flex items-center gap-2 rounded-2xl border border-[rgba(157,49,49,0.18)] px-3 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[rgba(157,49,49,0.08)] disabled:cursor-not-allowed disabled:opacity-60"
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                            {isDeletingRecipe === ingredient.id ? 'Đang xóa...' : 'Xóa'}
+                                                                        </button>
+                                                                    </div>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : null}
                                 </div>
-                            ));
-                        })()}
+                            );
+                        })}
+
+                        {groupedRecipes.length > 0 ? (
+                            <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <p className="text-sm text-[var(--muted)]">
+                                    Trang {currentPage}/{totalPages} • {groupedRecipes.length} món có công thức
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className="rounded-2xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--panel)] disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        Trang trước
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        disabled={currentPage === totalPages}
+                                        className="rounded-2xl border border-[var(--border)] bg-white px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--panel)] disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        Trang sau
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null}
 
                         {recipesList.length === 0 ? (
                             <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel-strong)] px-4 py-6 text-center text-sm text-[var(--muted)]">

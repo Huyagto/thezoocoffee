@@ -7,6 +7,7 @@ const { AuthFailureError, BadRequestError, BadGatewayError } = require('../../co
 const { Created, OK } = require('../../core/success.response');
 const { createAccessToken, createRefreshToken } = require('../../auth/checkAuth');
 const redisClient = require('../../config/redis');
+const { clearShopConfigCache } = require('../../services/ghn.service');
 const sendMailForgotPassword = require('../../utils/mailForgotPassword');
 const { oAuth2Client, oauth2 } = require('../../utils/loginOAuth2Google');
 const { getFacebookLoginUrl, getFacebookAccessToken, getFacebookUserInfo } = require('../../utils/loginOAuth2Facebook');
@@ -358,6 +359,10 @@ class UserController {
                 to_ward_code: true,
             },
         });
+
+        if (updatedUser.role === 'admin') {
+            clearShopConfigCache();
+        }
 
         new OK({
             message: 'Cap nhat ho so thanh cong',

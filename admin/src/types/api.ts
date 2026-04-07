@@ -5,6 +5,11 @@ export interface User {
     role?: string;
     phone?: string;
     address?: string;
+    province_name?: string;
+    district_name?: string;
+    ward_name?: string;
+    to_district_id?: number | null;
+    to_ward_code?: string | null;
 }
 
 export interface LoginData {
@@ -135,4 +140,21 @@ export interface Coupon {
     status: 'active' | 'inactive';
     created_at?: string;
     updated_at?: string;
+}
+
+export interface ShippingProvince {
+    ProvinceID: number;
+    ProvinceName: string;
+}
+
+export interface ShippingDistrict {
+    DistrictID: number;
+    DistrictName: string;
+    ProvinceID: number;
+}
+
+export interface ShippingWard {
+    WardCode: string;
+    WardName: string;
+    DistrictID: number;
 }
