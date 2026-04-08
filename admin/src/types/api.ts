@@ -141,6 +141,9 @@ export interface Coupon {
 
 export interface DashboardStats {
     todayRevenue: number;
+    dailyRevenue: number;
+    monthlyRevenue: number;
+    yearlyRevenue: number;
     pendingOrders: number;
     totalOrders: number;
     totalProducts: number;

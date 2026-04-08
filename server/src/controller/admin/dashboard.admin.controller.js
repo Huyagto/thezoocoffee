@@ -16,6 +16,31 @@ function isSameDay(dateValue) {
     );
 }
 
+function isSameMonth(dateValue) {
+    if (!dateValue) {
+        return false;
+    }
+
+    const inputDate = new Date(dateValue);
+    const now = new Date();
+
+    return (
+        inputDate.getFullYear() === now.getFullYear() &&
+        inputDate.getMonth() === now.getMonth()
+    );
+}
+
+function isSameYear(dateValue) {
+    if (!dateValue) {
+        return false;
+    }
+
+    const inputDate = new Date(dateValue);
+    const now = new Date();
+
+    return inputDate.getFullYear() === now.getFullYear();
+}
+
 class DashboardAdminController {
     async getDashboard(req, res) {
         const [categories, products, inventoryItems, recentOrders, revenueOrders, users] = await Promise.all([
@@ -81,12 +106,28 @@ class DashboardAdminController {
             }),
         ]);
 
-        const todayRevenue = revenueOrders.reduce((total, order) => {
-            if (
-                !isSameDay(order.created_at) ||
-                order.payment_status !== 'paid' ||
-                order.order_status === 'cancelled'
-            ) {
+        const paidOrders = revenueOrders.filter(
+            (order) => order.payment_status === 'paid' && order.order_status !== 'cancelled'
+        );
+
+        const dailyRevenue = paidOrders.reduce((total, order) => {
+            if (!isSameDay(order.created_at)) {
+                return total;
+            }
+
+            return total + Number(order.total_amount || 0);
+        }, 0);
+
+        const monthlyRevenue = paidOrders.reduce((total, order) => {
+            if (!isSameMonth(order.created_at)) {
+                return total;
+            }
+
+            return total + Number(order.total_amount || 0);
+        }, 0);
+
+        const yearlyRevenue = paidOrders.reduce((total, order) => {
+            if (!isSameYear(order.created_at)) {
                 return total;
             }
 
@@ -104,7 +145,10 @@ class DashboardAdminController {
             message: 'Lấy dữ liệu dashboard thành công',
             metadata: {
                 stats: {
-                    todayRevenue,
+                    todayRevenue: dailyRevenue,
+                    dailyRevenue,
+                    monthlyRevenue,
+                    yearlyRevenue,
                     pendingOrders,
                     totalOrders: revenueOrders.length,
                     totalProducts: products.length,

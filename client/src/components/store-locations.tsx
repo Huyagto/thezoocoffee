@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { MapPin, Phone } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
 import shippingService from '@/services/shipping.service';
 import type { StoreLocation } from '@/types/api';
 
@@ -56,10 +55,7 @@ export function StoreLocations() {
                         <div className="relative aspect-[4/3] overflow-hidden rounded-3xl shadow-2xl">
                             <Image src="/images/store.jpg" alt="TheZooCoffee store interior" fill className="object-cover" loading="eager" />
                         </div>
-                        <div className="absolute -bottom-6 -right-6 hidden rounded-2xl bg-primary p-6 text-primary-foreground shadow-xl md:block">
-                            <p className="font-serif text-3xl font-bold">{locations.length || '-'}</p>
-                            <p className="text-sm opacity-90">Địa điểm đang hiển thị</p>
-                        </div>
+
                     </div>
 
                     <div>
@@ -69,9 +65,7 @@ export function StoreLocations() {
                         <h2 className="font-serif text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl">
                             Địa Chỉ Cửa Hàng
                         </h2>
-                        <p className="mt-4 max-w-xl text-lg leading-relaxed text-muted-foreground text-pretty">
-                            Địa chỉ này được lấy trực tiếp từ thông tin admin cấu hình trong hệ thống, không dùng dữ liệu mẫu.
-                        </p>
+
 
                         <div className="mt-8 space-y-6">
                             {isLoading ? (
@@ -123,9 +117,6 @@ export function StoreLocations() {
                             )}
                         </div>
 
-                        <Button size="lg" className="mt-8 bg-primary text-primary-foreground hover:bg-primary/90" disabled={!locations.length}>
-                            {locations.length ? 'Xem địa chỉ cửa hàng' : 'Chưa có địa chỉ'}
-                        </Button>
                     </div>
                 </div>
             </div>
