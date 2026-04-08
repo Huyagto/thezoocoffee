@@ -23,6 +23,12 @@ const CART_SELECT = {
                     price: true,
                     image: true,
                     status: true,
+                    categories: {
+                        select: {
+                            id: true,
+                            status: true,
+                        },
+                    },
                 },
             },
         },
@@ -82,14 +88,60 @@ async function getOrCreateCart(userId) {
     });
 }
 
+async function removeUnavailableCartItems(cartId) {
+    const unavailableItems = await prisma.cart_items.findMany({
+        where: {
+            cart_id: cartId,
+            OR: [
+                {
+                    products: {
+                        status: {
+                            not: 'available',
+                        },
+                    },
+                },
+                {
+                    products: {
+                        categories: {
+                            is: {
+                                status: {
+                                    not: 'active',
+                                },
+                            },
+                        },
+                    },
+                },
+            ],
+        },
+        select: { id: true },
+    });
+
+    if (!unavailableItems.length) {
+        return;
+    }
+
+    await prisma.cart_items.deleteMany({
+        where: {
+            id: {
+                in: unavailableItems.map((item) => item.id),
+            },
+        },
+    });
+}
+
 class CartController {
     async getCart(req, res) {
         const userId = getCurrentUserId(req);
         const cart = await getOrCreateCart(userId);
+        await removeUnavailableCartItems(cart.id);
+        const refreshedCart = await prisma.carts.findUnique({
+            where: { id: cart.id },
+            select: CART_SELECT,
+        });
 
         new OK({
-            message: 'Lấy giỏ hàng thành công',
-            metadata: normalizeCart(cart),
+            message: 'L?y gi? h?ng th?nh c?ng',
+            metadata: normalizeCart(refreshedCart),
         }).send(res);
     }
 
@@ -111,11 +163,17 @@ class CartController {
                 price: true,
                 image: true,
                 status: true,
+                categories: {
+                    select: {
+                        id: true,
+                        status: true,
+                    },
+                },
             },
         });
 
-        if (!product || product.status !== 'available') {
-            throw new NotFoundError('Sản phẩm không tồn tại hoac khong con ban');
+        if (!product || product.status !== 'available' || product.categories?.status !== 'active') {
+            throw new NotFoundError('S?n ph?m kh?ng t?n t?i ho?c danh m?c ?? ng?ng ho?t ??ng');
         }
 
         const cart = await getOrCreateCart(userId);
@@ -161,14 +219,35 @@ class CartController {
         const quantity = Number(req.body.quantity);
 
         if (Number.isNaN(productId) || Number.isNaN(quantity)) {
-            throw new BadRequestError('Dữ liệu cập nhật giỏ hàng không hợp lệ');
+            throw new BadRequestError('D? li?u c?p nh?t gi? h?ng kh?ng h?p l?');
         }
 
         const cart = await getOrCreateCart(userId);
         const cartItem = cart.cart_items.find((item) => item.product_id === productId);
 
         if (!cartItem) {
-            throw new NotFoundError('Sản phẩm không có trong giỏ hàng');
+            throw new NotFoundError('S?n ph?m kh?ng c? trong gi? h?ng');
+        }
+
+        const product = await prisma.products.findUnique({
+            where: { id: productId },
+            select: {
+                id: true,
+                status: true,
+                categories: {
+                    select: {
+                        status: true,
+                    },
+                },
+            },
+        });
+
+        if (!product || product.status !== 'available' || product.categories?.status !== 'active') {
+            await prisma.cart_items.deleteMany({
+                where: { id: cartItem.id },
+            });
+
+            throw new BadRequestError('S?n ph?m n?y ?? ng?ng kinh doanh ho?c danh m?c ?? b? ?n');
         }
 
         if (quantity < 1) {

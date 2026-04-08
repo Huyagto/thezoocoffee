@@ -199,6 +199,14 @@ export default function CheckoutPage() {
     const handleApplyCoupon = async () => {
         if (!couponCode.trim()) return;
 
+        if (appliedCoupon?.code === couponCode.trim()) {
+            toast({
+                title: 'Mã đã được áp dụng',
+                description: `Mã ${appliedCoupon.code} đang được sử dụng cho đơn hàng này.`,
+            });
+            return;
+        }
+
         setIsApplyingCoupon(true);
         try {
             const result = await couponService.validate(couponCode.trim(), subtotal);
@@ -406,8 +414,21 @@ export default function CheckoutPage() {
                             <CardContent className="p-6">
                                 <h2 className="mb-4 font-serif text-2xl font-semibold text-card-foreground">Mã giảm giá</h2>
                                 <div className="flex flex-col gap-3 sm:flex-row">
-                                    <Input value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Nhập mã coupon" />
-                                    <Button type="button" onClick={handleApplyCoupon} disabled={isApplyingCoupon}>{isApplyingCoupon ? 'Đang áp dụng...' : 'Áp dụng'}</Button>
+                                    <div className="flex-1 space-y-2">
+                                        <Input
+                                            value={couponCode}
+                                            onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+                                            placeholder="Nhập mã coupon"
+                                        />
+                                        {appliedCoupon ? (
+                                            <p className="text-sm font-medium text-[rgb(46,125,91)]">
+                                                Mã {appliedCoupon.code} đang được áp dụng cho đơn hàng.
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                    <Button type="button" onClick={handleApplyCoupon} disabled={isApplyingCoupon}>
+                                        {isApplyingCoupon ? 'Đang áp dụng...' : appliedCoupon?.code === couponCode.trim() ? 'Đã áp dụng' : 'Áp dụng'}
+                                    </Button>
                                 </div>
                                 {appliedCoupon ? (
                                     <div className="mt-4 rounded-2xl border border-[rgba(46,125,91,0.18)] bg-[rgba(46,125,91,0.08)] p-4">

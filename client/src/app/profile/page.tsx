@@ -582,8 +582,8 @@ export default function ProfilePage() {
                     </div>
                 ) : currentUser ? (
                     <div className="space-y-8">
-                        <Card className="overflow-hidden rounded-3xl border-border">
-                            <CardHeader className="border-b border-border bg-[linear-gradient(135deg,rgba(18,18,18,0.98),rgba(63,42,29,0.95))] text-white">
+                        <Card className="overflow-hidden rounded-3xl border-white/10 bg-[linear-gradient(135deg,rgba(18,18,18,0.98),rgba(63,42,29,0.95))]">
+                            <CardHeader className="border-b border-white/10 bg-transparent text-white">
                                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                                     <div>
                                         <p className="text-xs uppercase tracking-[0.28em] text-white/60">Account View</p>

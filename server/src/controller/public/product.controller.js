@@ -89,14 +89,32 @@ class ProductController {
             orderBy = { price: 'desc' };
         }
 
-        const where = search
-            ? {
-                  name: {
-                      contains: search,
-                      mode: 'insensitive',
-                  },
-              }
-            : {};
+        const where = {
+            status: 'available',
+            categories: {
+                is: {
+                    status: 'active',
+                },
+            },
+            ...(search
+                ? {
+                      OR: [
+                          {
+                              name: {
+                                  contains: search,
+                                  mode: 'insensitive',
+                              },
+                          },
+                          {
+                              description: {
+                                  contains: search,
+                                  mode: 'insensitive',
+                              },
+                          },
+                      ],
+                  }
+                : {}),
+        };
 
         const [products, total, allProductIds] = await Promise.all([
             prisma.products.findMany({
@@ -188,10 +206,14 @@ class ProductController {
         }
 
         const where = {
+            status: 'available',
             categories: {
-                name: {
-                    equals: category,
-                    mode: 'insensitive',
+                is: {
+                    name: {
+                        equals: category,
+                        mode: 'insensitive',
+                    },
+                    status: 'active',
                 },
             },
         };

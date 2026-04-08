@@ -375,6 +375,10 @@ class OrderController {
             throw new NotFoundError('Đơn hàng không tồn tại');
         }
 
+        if (order.order_status === 'cancelled') {
+            throw new BadRequestError('Kh?ng th? c?p nh?t thanh to?n cho ??n h?ng ?? h?y');
+        }
+
         const updatedOrder = await prisma.$transaction(async (tx) => {
             await tx.orders.update({
                 where: { id: orderId },

@@ -35,6 +35,36 @@ function normalizeCoupon(coupon) {
     };
 }
 
+function parseOptionalDateTime(value) {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (value === null || value === '') {
+        return null;
+    }
+
+    const parsedDate = new Date(value);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+        throw new BadRequestError('Ngày giờ coupon không hợp lệ');
+    }
+
+    return parsedDate;
+}
+
+function validateCouponDateRange({ startsAt, expiresAt }) {
+    const now = new Date();
+
+    if (expiresAt && expiresAt < now) {
+        throw new BadRequestError('Ngày hết hạn không được nằm trong quá khứ');
+    }
+
+    if (startsAt && expiresAt && startsAt > expiresAt) {
+        throw new BadRequestError('Ngày bắt đầu không được sau ngày hết hạn');
+    }
+}
+
 function calculateDiscount(coupon, subtotal) {
     const subtotalNumber = Number(subtotal || 0);
     const minOrderValue = Number(coupon.min_order_value || 0);
@@ -141,6 +171,13 @@ class CouponController {
             maxDiscountAmount === undefined || maxDiscountAmount === null || maxDiscountAmount === ''
                 ? null
                 : normalizeVndAmount(maxDiscountAmount);
+        const parsedStartsAt = parseOptionalDateTime(startsAt);
+        const parsedExpiresAt = parseOptionalDateTime(expiresAt);
+
+        validateCouponDateRange({
+            startsAt: parsedStartsAt,
+            expiresAt: parsedExpiresAt,
+        });
 
         const createdCoupon = await prisma.coupons.create({
             data: {
@@ -152,8 +189,8 @@ class CouponController {
                 min_order_value: normalizedMinOrderValue ?? 0,
                 max_discount_amount: normalizedMaxDiscountAmount,
                 usage_limit: usageLimit ? Number(usageLimit) : null,
-                starts_at: startsAt ? new Date(startsAt) : null,
-                expires_at: expiresAt ? new Date(expiresAt) : null,
+                starts_at: parsedStartsAt,
+                expires_at: parsedExpiresAt,
                 status: status === 'inactive' ? 'inactive' : 'active',
             },
             select: COUPON_SELECT,
@@ -196,6 +233,25 @@ class CouponController {
                 : payload.maxDiscountAmount
                   ? normalizeVndAmount(payload.maxDiscountAmount)
                   : null;
+        const parsedStartsAt = parseOptionalDateTime(payload.startsAt);
+        const parsedExpiresAt = parseOptionalDateTime(payload.expiresAt);
+        const nextStartsAt =
+            parsedStartsAt === undefined
+                ? existingCoupon.starts_at
+                    ? new Date(existingCoupon.starts_at)
+                    : null
+                : parsedStartsAt;
+        const nextExpiresAt =
+            parsedExpiresAt === undefined
+                ? existingCoupon.expires_at
+                    ? new Date(existingCoupon.expires_at)
+                    : null
+                : parsedExpiresAt;
+
+        validateCouponDateRange({
+            startsAt: nextStartsAt,
+            expiresAt: nextExpiresAt,
+        });
 
         const updatedCoupon = await prisma.coupons.update({
             where: { id: couponId },
@@ -210,9 +266,8 @@ class CouponController {
                 max_discount_amount: normalizedMaxDiscountAmount,
                 usage_limit:
                     payload.usageLimit === undefined ? undefined : payload.usageLimit ? Number(payload.usageLimit) : null,
-                starts_at: payload.startsAt === undefined ? undefined : payload.startsAt ? new Date(payload.startsAt) : null,
-                expires_at:
-                    payload.expiresAt === undefined ? undefined : payload.expiresAt ? new Date(payload.expiresAt) : null,
+                starts_at: parsedStartsAt,
+                expires_at: parsedExpiresAt,
                 status: payload.status || undefined,
                 updated_at: new Date(),
             },

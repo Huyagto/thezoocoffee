@@ -180,6 +180,11 @@ class OrderController {
             where: {
                 id: { in: productIds },
                 status: 'available',
+                categories: {
+                    is: {
+                        status: 'active',
+                    },
+                },
             },
             select: {
                 id: true,

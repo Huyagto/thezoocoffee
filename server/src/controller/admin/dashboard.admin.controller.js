@@ -18,7 +18,7 @@ function isSameDay(dateValue) {
 
 class DashboardAdminController {
     async getDashboard(req, res) {
-        const [categories, products, inventoryItems, orders, users] = await Promise.all([
+        const [categories, products, inventoryItems, recentOrders, revenueOrders, users] = await Promise.all([
             prisma.categories.findMany({
                 select: {
                     id: true,
@@ -64,6 +64,15 @@ class DashboardAdminController {
                     },
                 },
             }),
+            prisma.orders.findMany({
+                select: {
+                    id: true,
+                    total_amount: true,
+                    order_status: true,
+                    payment_status: true,
+                    created_at: true,
+                },
+            }),
             prisma.users.findMany({
                 select: {
                     id: true,
@@ -72,15 +81,19 @@ class DashboardAdminController {
             }),
         ]);
 
-        const todayRevenue = orders.reduce((total, order) => {
-            if (!isSameDay(order.created_at) || order.payment_status !== 'paid') {
+        const todayRevenue = revenueOrders.reduce((total, order) => {
+            if (
+                !isSameDay(order.created_at) ||
+                order.payment_status !== 'paid' ||
+                order.order_status === 'cancelled'
+            ) {
                 return total;
             }
 
             return total + Number(order.total_amount || 0);
         }, 0);
 
-        const pendingOrders = orders.filter((order) =>
+        const pendingOrders = revenueOrders.filter((order) =>
             ['pending', 'confirmed', 'preparing', 'shipping'].includes(order.order_status)
         ).length;
 
@@ -93,7 +106,7 @@ class DashboardAdminController {
                 stats: {
                     todayRevenue,
                     pendingOrders,
-                    totalOrders: orders.length,
+                    totalOrders: revenueOrders.length,
                     totalProducts: products.length,
                     activeCategories,
                     totalUsers: users.length,
@@ -105,7 +118,7 @@ class DashboardAdminController {
                     discontinuedProducts: products.filter((item) => item.status === 'discontinued').length,
                     inactiveCategories: categories.filter((item) => item.status === 'inactive').length,
                 },
-                recentOrders: orders.map((order) => ({
+                recentOrders: recentOrders.map((order) => ({
                     ...order,
                     user: order.users,
                 })),

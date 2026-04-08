@@ -121,6 +121,8 @@ export default function OrdersPage() {
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [selectedOrderGroup, setSelectedOrderGroup] = useState<Order['order_status']>('pending');
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState<'all' | Order['payment_status']>('all');
   const focusOrderId = Number(searchParams.get('focusOrderId') || '');
 
   const loadOrders = useCallback(async () => {
@@ -196,10 +198,27 @@ export default function OrdersPage() {
     setExpandedOrderId(focusOrderId);
   }, [focusOrderId, orders]);
 
-  const filteredOrders = useMemo(
-    () => orders.filter((order) => order.order_status === selectedOrderGroup),
-    [orders, selectedOrderGroup]
-  );
+  const filteredOrders = useMemo(() => {
+    const normalizedQuery = searchQuery
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
+    return orders.filter((order) => {
+      const matchesGroup = order.order_status === selectedOrderGroup;
+      const matchesPayment = paymentFilter === 'all' || order.payment_status === paymentFilter;
+      const matchesSearch =
+        !normalizedQuery ||
+        `${order.order_code} ${order.user?.name ?? ''} ${order.user?.email ?? ''} ${order.shipping_address ?? ''}`
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .includes(normalizedQuery);
+
+      return matchesGroup && matchesPayment && matchesSearch;
+    });
+  }, [orders, paymentFilter, searchQuery, selectedOrderGroup]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ITEMS_PER_PAGE));
   const startOrderIndex =
@@ -228,7 +247,7 @@ export default function OrdersPage() {
     if (!filteredOrders.some((order) => order.id === expandedOrderId)) {
       setExpandedOrderId(null);
     }
-  }, [selectedOrderGroup, expandedOrderId, filteredOrders]);
+  }, [selectedOrderGroup, expandedOrderId, filteredOrders, paymentFilter, searchQuery]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -311,6 +330,28 @@ export default function OrdersPage() {
                 Chọn trạng thái cần xem, admin chỉ thấy đúng nhóm đơn đó.
               </p>
             </div>
+            <div className="grid gap-3 md:grid-cols-[1.3fr_0.8fr]">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Tìm theo mã đơn, khách hàng, email hoặc địa chỉ"
+                className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
+              />
+              <select
+                value={paymentFilter}
+                onChange={(event) =>
+                  setPaymentFilter(event.target.value as 'all' | Order['payment_status'])
+                }
+                className="w-full rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm outline-none"
+              >
+                <option value="all">Tất cả thanh toán</option>
+                <option value="unpaid">Chưa thanh toán</option>
+                <option value="paid">Đã thanh toán</option>
+                <option value="failed">Thanh toán thất bại</option>
+                <option value="refunded">Hoàn trả</option>
+              </select>
+            </div>
             <div className="flex flex-wrap gap-2">
               {ORDER_GROUPS.map((group) => {
                 const count = orders.filter((order) => order.order_status === group.key).length;
@@ -358,6 +399,7 @@ export default function OrdersPage() {
                 order.order_status === 'shipping' ||
                 order.order_status === 'completed' ||
                 order.order_status === 'cancelled';
+              const isPaymentStatusLocked = isSubmitting || order.order_status === 'cancelled';
 
               return (
                 <div
@@ -440,7 +482,7 @@ export default function OrdersPage() {
                           </p>
                           <select
                             value={order.payment_status}
-                            disabled={isSubmitting}
+                            disabled={isPaymentStatusLocked}
                             onChange={(event) =>
                               handleChangePaymentStatus(
                                 order.id,
@@ -455,6 +497,11 @@ export default function OrdersPage() {
                               </option>
                             ))}
                           </select>
+                          {order.order_status === 'cancelled' ? (
+                            <p className="text-xs text-[var(--muted)]">
+                              Đơn đã hủy nên trạng thái thanh toán đã được khóa.
+                            </p>
+                          ) : null}
                         </div>
                       </div>
 

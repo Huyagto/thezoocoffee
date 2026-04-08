@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
@@ -19,6 +19,34 @@ export default function CartPage() {
     const { items, updateQuantity, removeFromCart, totalItems, totalPrice, clearCart } = useCart();
     const { user } = useAuth();
     const [loginNotice, setLoginNotice] = useState('');
+    const [quantityDrafts, setQuantityDrafts] = useState<Record<number, string>>({});
+
+    useEffect(() => {
+        setQuantityDrafts((prev) => {
+            const next: Record<number, string> = {};
+            for (const item of items) {
+                next[item.id] = prev[item.id] ?? String(item.quantity);
+            }
+            return next;
+        });
+    }, [items]);
+
+    const commitQuantityChange = async (itemId: number, fallbackQuantity: number) => {
+        const rawValue = quantityDrafts[itemId]?.trim() ?? '';
+        const parsedQuantity = Number.parseInt(rawValue, 10);
+
+        if (!rawValue || Number.isNaN(parsedQuantity)) {
+            setQuantityDrafts((prev) => ({ ...prev, [itemId]: String(fallbackQuantity) }));
+            return;
+        }
+
+        const nextQuantity = Math.max(1, parsedQuantity);
+        setQuantityDrafts((prev) => ({ ...prev, [itemId]: String(nextQuantity) }));
+
+        if (nextQuantity !== fallbackQuantity) {
+            await updateQuantity(itemId, nextQuantity);
+        }
+    };
 
     const handleCheckoutClick = () => {
         if (user) {
@@ -109,9 +137,29 @@ export default function CartPage() {
                                                     >
                                                         <Minus className="h-3.5 w-3.5" />
                                                     </button>
-                                                    <span className="w-8 text-center text-sm font-medium text-foreground">
-                                                        {item.quantity}
-                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        inputMode="numeric"
+                                                        value={quantityDrafts[item.id] ?? String(item.quantity)}
+                                                        onChange={(event) =>
+                                                            setQuantityDrafts((prev) => ({
+                                                                ...prev,
+                                                                [item.id]: event.target.value,
+                                                            }))
+                                                        }
+                                                        onBlur={() => {
+                                                            void commitQuantityChange(item.id, item.quantity);
+                                                        }}
+                                                        onKeyDown={(event) => {
+                                                            if (event.key === 'Enter') {
+                                                                event.preventDefault();
+                                                                void commitQuantityChange(item.id, item.quantity);
+                                                            }
+                                                        }}
+                                                        className="h-7 w-12 rounded-md border border-transparent bg-transparent px-1 text-center text-sm font-medium text-foreground outline-none transition-colors focus:border-border focus:bg-white"
+                                                        aria-label="Nhập số lượng sản phẩm"
+                                                    />
                                                     <button
                                                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
                                                         className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
