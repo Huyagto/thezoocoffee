@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, Coffee, LogOut, Menu, ShoppingCart, User, X } from 'lucide-react';
+import { Bell, ChevronDown, Coffee, LogOut, Menu, ShoppingCart, Trash2, User, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/auth-context';
@@ -17,76 +17,164 @@ const navLinks = [
     { href: '/menu', label: 'Thực đơn' },
 ];
 
+function formatNotificationTime(value?: string) {
+    if (!value) {
+        return '';
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    return new Intl.DateTimeFormat('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(date);
+}
+
 function NotificationPanel({
     notifications,
     onMarkAsRead,
+    onDelete,
     onOpenOrder,
 }: {
     notifications: Notification[];
     onMarkAsRead: (id: number) => void;
+    onDelete: (id: number) => void;
     onOpenOrder: (notification: Notification) => void;
 }) {
-    const unreadCount = notifications.filter((notification) => !notification.is_read).length;
+    const [showReadNotifications, setShowReadNotifications] = useState(false);
+
+    const unreadNotifications = notifications.filter((notification) => !notification.is_read);
+    const readNotifications = notifications.filter((notification) => notification.is_read);
+
+    const renderNotificationCard = (notification: Notification) => (
+        <div
+            key={notification.id}
+            className={`rounded-2xl border px-3 py-3 ${
+                notification.is_read
+                    ? 'border-border/80 bg-muted/35'
+                    : 'border-border bg-card shadow-sm'
+            }`}
+        >
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                        {!notification.is_read ? (
+                            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
+                        ) : null}
+                        <p className="line-clamp-1 text-sm font-semibold text-foreground">
+                            {notification.title}
+                        </p>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                        {notification.message}
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => onDelete(notification.id)}
+                    className="shrink-0 rounded-full p-2 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                    aria-label="Xóa thông báo"
+                >
+                    <Trash2 className="h-4 w-4" />
+                </button>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-foreground">
+                        {notification.orders?.order_code ?? 'Thông báo hệ thống'}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                        {formatNotificationTime(notification.created_at)}
+                    </p>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                    {notification.orders?.id ? (
+                        <button
+                            type="button"
+                            onClick={() => onOpenOrder(notification)}
+                            className="rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold text-foreground transition hover:border-primary hover:text-primary"
+                        >
+                            Xem đơn
+                        </button>
+                    ) : null}
+
+                    {!notification.is_read ? (
+                        <button
+                            type="button"
+                            onClick={() => onMarkAsRead(notification.id)}
+                            className="rounded-full bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground transition hover:bg-primary/90"
+                        >
+                            Đã đọc
+                        </button>
+                    ) : null}
+                </div>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="w-full rounded-3xl border border-border bg-background p-4 shadow-2xl md:w-[360px]">
+        <div className="w-full rounded-3xl border border-border bg-background p-4 shadow-2xl md:w-[380px]">
             <div className="flex items-center justify-between gap-3">
                 <div>
                     <p className="text-sm font-semibold text-foreground">Thông báo</p>
                     <p className="text-xs text-muted-foreground">
-                        {unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : 'Bạn đã xem hết thông báo'}
+                        {unreadNotifications.length > 0
+                            ? `${unreadNotifications.length} thông báo mới`
+                            : 'Không có thông báo mới'}
                     </p>
                 </div>
+                {readNotifications.length > 0 ? (
+                    <button
+                        type="button"
+                        onClick={() => setShowReadNotifications((currentValue) => !currentValue)}
+                        className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"
+                    >
+                        Đã đọc {readNotifications.length}
+                        <ChevronDown
+                            className={`h-3.5 w-3.5 transition ${showReadNotifications ? 'rotate-180' : ''}`}
+                        />
+                    </button>
+                ) : null}
             </div>
 
             <div className="mt-4 space-y-3">
-                {notifications.slice(0, 5).map((notification) => (
-                    <div key={notification.id} className="flex min-h-[148px] flex-col justify-between rounded-2xl border border-border bg-card p-4">
-                        <div className="space-y-2">
-                            <p className="line-clamp-1 text-sm font-semibold text-foreground">{notification.title}</p>
-                            <p className="line-clamp-3 min-h-[72px] text-sm leading-6 text-muted-foreground">{notification.message}</p>
-                        </div>
-                        <div className="mt-4 flex items-end justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Mã đơn</p>
-                                <p className="truncate text-xs font-medium text-foreground">
-                                    {notification.orders?.order_code ?? 'Thông báo hệ thống'}
-                                </p>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                                {notification.orders?.id ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => onOpenOrder(notification)}
-                                        className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold text-foreground"
-                                    >
-                                        Xem đơn
-                                    </button>
-                                ) : null}
-                                {!notification.is_read ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => onMarkAsRead(notification.id)}
-                                        className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold text-foreground"
-                                    >
-                                        Đã xem
-                                    </button>
-                                ) : (
-                                    <span className="rounded-full bg-secondary px-3 py-1 text-[11px] font-semibold text-muted-foreground">
-                                        Đã đọc
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                ))}
-
-                {notifications.length === 0 ? (
+                {unreadNotifications.length > 0 ? (
+                    unreadNotifications.map(renderNotificationCard)
+                ) : (
                     <div className="rounded-2xl border border-dashed border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-                        Chưa có thông báo nào.
+                        Chưa có thông báo mới.
                     </div>
-                ) : null}
+                )}
             </div>
+
+            {readNotifications.length > 0 ? (
+                <div className="mt-4 border-t border-border pt-4">
+                    <button
+                        type="button"
+                        onClick={() => setShowReadNotifications((currentValue) => !currentValue)}
+                        className="flex w-full items-center justify-between rounded-2xl bg-muted/50 px-3 py-2 text-left text-sm font-medium text-foreground"
+                    >
+                        <span>Thông báo đã đọc</span>
+                        <span className="text-xs text-muted-foreground">
+                            {showReadNotifications ? 'Thu gọn' : 'Kéo xuống để xem thêm'}
+                        </span>
+                    </button>
+
+                    {showReadNotifications ? (
+                        <div className="mt-3 max-h-72 space-y-3 overflow-y-auto pr-1">
+                            {readNotifications.map(renderNotificationCard)}
+                        </div>
+                    ) : null}
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -140,7 +228,6 @@ export function Navbar() {
         socket.connect();
         socket.on(SOCKET_EVENTS.USER_ORDER_STATUS_UPDATED, handleRealtimeNotification);
         socket.on(SOCKET_EVENTS.USER_NOTIFICATION_CREATED, handleRealtimeNotification);
-
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
@@ -171,7 +258,18 @@ export function Navbar() {
                 )
             );
         } catch {
-            // Keep this action quiet in the navbar.
+            // Keep quiet in navbar.
+        }
+    };
+
+    const handleDeleteNotification = async (notificationId: number) => {
+        try {
+            await notificationService.deleteNotification(notificationId);
+            setNotifications((currentNotifications) =>
+                currentNotifications.filter((notification) => notification.id !== notificationId)
+            );
+        } catch {
+            // Keep quiet in navbar.
         }
     };
 
@@ -233,6 +331,7 @@ export function Navbar() {
                                         <NotificationPanel
                                             notifications={notifications}
                                             onMarkAsRead={handleMarkNotificationAsRead}
+                                            onDelete={handleDeleteNotification}
                                             onOpenOrder={handleOpenOrderFromNotification}
                                         />
                                     </div>
@@ -328,6 +427,7 @@ export function Navbar() {
                     <NotificationPanel
                         notifications={notifications}
                         onMarkAsRead={handleMarkNotificationAsRead}
+                        onDelete={handleDeleteNotification}
                         onOpenOrder={handleOpenOrderFromNotification}
                     />
                 </div>

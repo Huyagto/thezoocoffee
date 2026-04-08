@@ -185,6 +185,7 @@ export interface Notification {
     title: string;
     message: string;
     is_read?: boolean | null;
+    is_deleted?: boolean | null;
     read_at?: string | null;
     created_at?: string;
     updated_at?: string;

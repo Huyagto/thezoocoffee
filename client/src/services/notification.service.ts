@@ -15,6 +15,11 @@ const notificationService = {
     )
     return getPayload(response.data)
   },
+
+  async deleteNotification(id: number): Promise<Notification> {
+    const response = await axiosInstance.delete<ApiResponse<Notification>>(`/user/notifications/${id}`)
+    return getPayload(response.data)
+  },
 }
 
 export default notificationService

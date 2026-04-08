@@ -42,8 +42,9 @@ class NotificationAdminController {
                         audience: 'admin',
                         type: NOTIFICATION_TYPE.ORDER_PENDING_CONFIRMATION,
                         title: 'Có đơn hàng mới cần xác nhận',
-                        message: `Đơn ${order.order_code} đang chờ admin xác nhận trước khi chuẩn bị.`,
+                        message: `Đơn ${order.order_code} đang chờ admin xác nhận trước khi chuyển sang chuẩn bị.`,
                         is_read: false,
+                        is_deleted: false,
                         read_at: null,
                     })),
                 });
@@ -53,6 +54,7 @@ class NotificationAdminController {
         const notifications = await prisma.notifications.findMany({
             where: {
                 audience: 'admin',
+                is_deleted: false,
             },
             orderBy: {
                 created_at: 'desc',
@@ -86,6 +88,7 @@ class NotificationAdminController {
             where: {
                 id: notificationId,
                 audience: 'admin',
+                is_deleted: false,
             },
         });
 
@@ -104,6 +107,39 @@ class NotificationAdminController {
 
         new OK({
             message: 'Đã đánh dấu thông báo đã đọc',
+            metadata: updatedNotification,
+        }).send(res);
+    }
+
+    async deleteNotification(req, res) {
+        const notificationId = Number(req.params.id);
+
+        if (Number.isNaN(notificationId)) {
+            throw new BadRequestError('ID thông báo không hợp lệ');
+        }
+
+        const notification = await prisma.notifications.findFirst({
+            where: {
+                id: notificationId,
+                audience: 'admin',
+                is_deleted: false,
+            },
+        });
+
+        if (!notification) {
+            throw new NotFoundError('Thông báo không tồn tại');
+        }
+
+        const updatedNotification = await prisma.notifications.update({
+            where: { id: notificationId },
+            data: {
+                is_deleted: true,
+                updated_at: new Date(),
+            },
+        });
+
+        new OK({
+            message: 'Đã xóa thông báo',
             metadata: updatedNotification,
         }).send(res);
     }

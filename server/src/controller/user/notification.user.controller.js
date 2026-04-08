@@ -10,11 +10,11 @@ class NotificationUserController {
             where: {
                 audience: 'user',
                 user_id: userId,
+                is_deleted: false,
             },
             orderBy: {
                 created_at: 'desc',
             },
-            take: 30,
             include: {
                 orders: {
                     select: {
@@ -47,7 +47,7 @@ class NotificationUserController {
             },
         });
 
-        if (!notification) {
+        if (!notification || notification.is_deleted) {
             throw new NotFoundError('Thông báo không tồn tại');
         }
 
@@ -66,6 +66,42 @@ class NotificationUserController {
 
         new OK({
             message: 'Đã đánh dấu thông báo đã đọc',
+            metadata: updatedNotification,
+        }).send(res);
+    }
+
+    async deleteNotification(req, res) {
+        const userId = Number(req.user?.userId || req.user?.id);
+        const notificationId = Number(req.params.id);
+
+        if (Number.isNaN(notificationId)) {
+            throw new BadRequestError('ID thông báo không hợp lệ');
+        }
+
+        const notification = await prisma.notifications.findUnique({
+            where: {
+                id: notificationId,
+            },
+        });
+
+        if (!notification || notification.is_deleted) {
+            throw new NotFoundError('Thông báo không tồn tại');
+        }
+
+        if (notification.audience !== 'user' || Number(notification.user_id) !== userId) {
+            throw new ForbiddenError('Bạn không có quyền thao tác thông báo này');
+        }
+
+        const updatedNotification = await prisma.notifications.update({
+            where: { id: notificationId },
+            data: {
+                is_deleted: true,
+                updated_at: new Date(),
+            },
+        });
+
+        new OK({
+            message: 'Đã xóa thông báo',
             metadata: updatedNotification,
         }).send(res);
     }

@@ -13,6 +13,11 @@ const notificationService = {
         const response = await axiosInstance.patch<ApiResponse<Notification>>(`/admin/notifications/${id}/read`);
         return getPayload(response.data);
     },
+
+    async deleteAdminNotification(id: number): Promise<Notification> {
+        const response = await axiosInstance.delete<ApiResponse<Notification>>(`/admin/notifications/${id}`);
+        return getPayload(response.data);
+    },
 };
 
 export default notificationService;
