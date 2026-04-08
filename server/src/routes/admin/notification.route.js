@@ -9,6 +9,8 @@ const router = express.Router();
 
 router.use(authUser, requireAdmin);
 router.get('/', asyncHandler(notificationAdminController.getNotifications));
+router.delete('/', asyncHandler(notificationAdminController.clearNotifications));
+router.patch('/read-all', asyncHandler(notificationAdminController.markAllAsRead));
 router.patch('/:id/read', asyncHandler(notificationAdminController.markAsRead));
 router.delete('/:id', asyncHandler(notificationAdminController.deleteNotification));
 

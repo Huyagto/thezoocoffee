@@ -38,6 +38,7 @@ import type { Notification, Order } from '@/types/api';
 
 const OTP_DURATION_SECONDS = 5 * 60;
 const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d\S]{8,50}$/;
+const USER_NOTIFICATION_REFRESH_INTERVAL_MS = 10000;
 
 function formatCurrency(amount: number | string | null | undefined) {
     const numericAmount = Number(amount ?? 0);
@@ -334,6 +335,12 @@ export default function ProfilePage() {
             void loadOrders();
             void loadNotifications();
         };
+        const intervalId = window.setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                void loadOrders();
+                void loadNotifications();
+            }
+        }, USER_NOTIFICATION_REFRESH_INTERVAL_MS);
 
         socket.connect();
         socket.on(SOCKET_EVENTS.USER_ORDER_STATUS_UPDATED, handleRealtimeUpdate);
@@ -346,6 +353,7 @@ export default function ProfilePage() {
             socket.off(SOCKET_EVENTS.USER_NOTIFICATION_CREATED, handleRealtimeUpdate);
             socket.disconnect();
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.clearInterval(intervalId);
         };
     }, [currentUser, loadNotifications, loadOrders]);
 

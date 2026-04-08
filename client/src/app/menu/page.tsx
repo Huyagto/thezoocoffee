@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils';
 import { productService } from '@/services/product.service';
 import type { Product, Category } from '@/types/api';
 
-type AvailabilityFilter = 'all' | 'available' | 'out_of_stock' | 'discontinued';
 type PriceFilter = 'all' | 'under-30000' | '30000-50000' | '50000-70000' | 'over-70000';
 type SortOption = 'default' | 'price-asc' | 'price-desc' | 'name-asc';
 
@@ -67,7 +66,6 @@ export default function MenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>('all');
   const [priceFilter, setPriceFilter] = useState<PriceFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('default');
   const [isLoading, setIsLoading] = useState(true);
@@ -107,8 +105,6 @@ export default function MenuPage() {
       const productPrice = Number(product.price ?? 0);
       const matchesCategory =
         selectedCategory === 'all' || product.categories?.id.toString() === selectedCategory;
-      const matchesAvailability =
-        availabilityFilter === 'all' || product.status === availabilityFilter;
       const matchesSearch =
         !normalizedQuery ||
         normalizeText(product.name).includes(normalizedQuery) ||
@@ -116,7 +112,7 @@ export default function MenuPage() {
         normalizeText(product.categories?.name || '').includes(normalizedQuery);
       const matchesPrice = matchesPriceFilter(productPrice, priceFilter);
 
-      return matchesCategory && matchesAvailability && matchesSearch && matchesPrice;
+      return matchesCategory && matchesSearch && matchesPrice;
     });
 
     if (sortBy === 'price-asc') {
@@ -128,7 +124,7 @@ export default function MenuPage() {
     }
 
     return nextProducts;
-  }, [availabilityFilter, priceFilter, products, searchQuery, selectedCategory, sortBy]);
+  }, [priceFilter, products, searchQuery, selectedCategory, sortBy]);
 
   if (isLoading) {
     return (
@@ -167,7 +163,7 @@ export default function MenuPage() {
         </div>
 
         <div className="mb-10">
-          <div className="mb-4 grid gap-3 rounded-2xl border border-border bg-card p-4 md:grid-cols-2 xl:grid-cols-[1.4fr_0.8fr_0.9fr_0.9fr]">
+          <div className="mb-4 grid gap-3 rounded-2xl border border-border bg-card p-4 md:grid-cols-2 xl:grid-cols-[1.6fr_1fr_1fr]">
             <input
               type="text"
               value={searchQuery}
@@ -175,16 +171,6 @@ export default function MenuPage() {
               placeholder="Tìm theo tên món, mô tả hoặc danh mục"
               className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none"
             />
-            <select
-              value={availabilityFilter}
-              onChange={(event) => setAvailabilityFilter(event.target.value as AvailabilityFilter)}
-              className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="available">Đang bán</option>
-              <option value="out_of_stock">Hết hàng</option>
-              <option value="discontinued">Ngừng bán</option>
-            </select>
             <select
               value={priceFilter}
               onChange={(event) => setPriceFilter(event.target.value as PriceFilter)}
@@ -252,7 +238,7 @@ export default function MenuPage() {
         </div>
 
         <div
-          key={`${selectedCategory}-${availabilityFilter}-${priceFilter}-${sortBy}-${searchQuery}`}
+          key={`${selectedCategory}-${priceFilter}-${sortBy}-${searchQuery}`}
           className="grid animate-in grid-cols-1 gap-6 fade-in slide-in-from-bottom-4 duration-300 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
           {filteredProducts.map((product, index) => (

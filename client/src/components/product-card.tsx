@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
 import { Check, Plus } from 'lucide-react';
@@ -53,32 +54,47 @@ export function ProductCard({ id, name, description, price, image, badge, priori
     };
 
     return (
-        <div className="group relative flex flex-col overflow-hidden rounded-2xl bg-card shadow-sm transition-all duration-300 hover:shadow-lg">
+        <div className="group relative flex flex-col overflow-hidden rounded-2xl bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
             {badge ? (
                 <span className="absolute left-4 top-4 z-10 rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
                     {badge}
                 </span>
             ) : null}
 
-            <div className="relative aspect-square overflow-hidden bg-muted">
-                <Image
-                    src={image}
-                    alt={name}
-                    fill
-                    priority={priority}
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-            </div>
+            <Link href={`/menu/${id}`} className="block">
+                <div className="relative aspect-square overflow-hidden bg-muted">
+                    <Image
+                        src={image}
+                        alt={name}
+                        fill
+                        priority={priority}
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                </div>
+            </Link>
 
-            <div className="flex flex-1 flex-col gap-2 p-5">
-                <h3 className="font-serif text-lg font-semibold text-card-foreground">{name}</h3>
-                <p className="flex-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
-                <div className="mt-2 flex items-center justify-between">
-                    <span className="text-lg font-bold text-foreground">{price}</span>
+            <div className="flex flex-1 flex-col p-5">
+                <Link href={`/menu/${id}`} className="block">
+                    <h3 className="line-clamp-2 min-h-[3.5rem] font-serif text-lg font-semibold text-card-foreground transition group-hover:text-primary">
+                        {name}
+                    </h3>
+                </Link>
+
+                <div className="mt-4">
+                    <span className="text-xl font-bold text-foreground">{price}</span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                    <Link
+                        href={`/menu/${id}`}
+                        className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-full bg-foreground px-4 text-sm font-semibold text-background transition hover:bg-primary"
+                    >
+                        Xem chi tiết
+                    </Link>
                     <Button
                         size="sm"
                         onClick={handleAddToCart}
-                        className={`gap-1.5 transition-all duration-300 ${
+                        className={`h-10 w-full gap-1.5 whitespace-nowrap transition-all duration-300 ${
                             isAdded
                                 ? 'bg-green-600 text-white hover:bg-green-600'
                                 : 'bg-primary text-primary-foreground hover:bg-primary/90'

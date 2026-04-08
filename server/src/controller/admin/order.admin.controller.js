@@ -314,7 +314,7 @@ class OrderController {
                 });
             }
 
-            if (['confirmed', 'preparing', 'shipping'].includes(status)) {
+            if (['confirmed', 'preparing', 'shipping', 'cancelled'].includes(status)) {
                 userNotification = await createUserOrderStatusNotification(
                     {
                         userId: order.user_id,

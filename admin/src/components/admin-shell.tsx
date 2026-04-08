@@ -13,6 +13,7 @@ import {
   FolderTree,
   LayoutDashboard,
   LogOut,
+  MapPin,
   Package,
   Trash2,
   TicketPercent,
@@ -24,10 +25,8 @@ import { LocationSearch } from "@/components/location-search"
 import { type OpenStreetMapLocationSelection } from "@/lib/openstreetmap"
 import { getAdminSocket, SOCKET_EVENTS } from "@/lib/socket"
 import authService from "@/services/auth.service"
-import catalogService from "@/services/catalog.service"
 import notificationService from "@/services/notification.service"
 import shippingService from "@/services/shipping.service"
-import type { Order } from "@/types/api"
 
 const ADMIN_SIDEBAR_REFRESH_INTERVAL_MS = 10000
 
@@ -67,8 +66,6 @@ type AdminNotification = {
   } | null
 }
 
-type PendingOrderAlert = Pick<Order, "id" | "order_code" | "order_status" | "payment_status">
-
 function formatStoreLocation(location: Partial<StoreLocation> | null | undefined) {
   if (!location) {
     return "Chưa có địa chỉ cửa hàng"
@@ -99,7 +96,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [selectedGooglePlace, setSelectedGooglePlace] =
     useState<OpenStreetMapLocationSelection | null>(null)
   const [notifications, setNotifications] = useState<AdminNotification[]>([])
-  const [pendingOrderAlerts, setPendingOrderAlerts] = useState<PendingOrderAlert[]>([])
   const [showReadNotifications, setShowReadNotifications] = useState(false)
   const activeStoreLocation =
     storeLocations.find((location) => location.id === activeLocationId) ??
@@ -112,20 +108,20 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     () =>
       Array.from(
         new Map(
-          [
-            ...pendingOrderAlerts,
-            ...pendingConfirmationNotifications.map((notification) => ({
-              id: notification.orders?.id ?? notification.id,
-              order_code: notification.orders?.order_code || "Đơn hàng chờ xác nhận",
-              order_status: notification.orders?.order_status || "pending",
-              payment_status: notification.orders?.payment_status || "unpaid",
-            })),
-          ]
+          pendingConfirmationNotifications
             .sort((left, right) => Number(right.id) - Number(left.id))
-            .map((order) => [order.id, order])
+            .map((notification) => [
+              notification.orders?.id ?? notification.id,
+              {
+                id: notification.orders?.id ?? notification.id,
+                order_code: notification.orders?.order_code || "Đơn hàng chờ xác nhận",
+                order_status: notification.orders?.order_status || "pending",
+                payment_status: notification.orders?.payment_status || "unpaid",
+              },
+            ])
         ).values()
       ),
-    [pendingConfirmationNotifications, pendingOrderAlerts]
+    [pendingConfirmationNotifications]
   )
   const getPendingNotificationByOrderId = useCallback(
     (orderId: number) =>
@@ -172,22 +168,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     }
   }, [user])
 
-  const loadPendingOrders = useCallback(async () => {
-    if (!user) {
-      setPendingOrderAlerts([])
-      return
-    }
-
-    try {
-      const orders = await catalogService.getOrders()
-      setPendingOrderAlerts(
-        orders.filter((order) => order.order_status === "pending")
-      )
-    } catch {
-      setPendingOrderAlerts([])
-    }
-  }, [user])
-
   const applyStoreLocationToForm = (location: StoreLocation) => {
     setShopName(location.name ?? "")
     setPickupAddress(location.address ?? "")
@@ -231,20 +211,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }, [loadNotifications, pathname])
 
   useEffect(() => {
-    void loadPendingOrders()
-  }, [loadPendingOrders, pathname])
-
-  useEffect(() => {
     const handleAdminOrdersUpdated = () => {
       void loadNotifications()
-      void loadPendingOrders()
     }
 
     window.addEventListener("admin-orders-updated", handleAdminOrdersUpdated)
     return () => {
       window.removeEventListener("admin-orders-updated", handleAdminOrdersUpdated)
     }
-  }, [loadNotifications, loadPendingOrders])
+  }, [loadNotifications])
 
   useEffect(() => {
     if (!user) {
@@ -254,19 +229,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     const socket = getAdminSocket()
     const handleRealtimeSync = () => {
       void loadNotifications()
-      void loadPendingOrders()
     }
     const handleVisibilitySync = () => {
       if (document.visibilityState === 'visible') {
         void loadNotifications()
-        void loadPendingOrders()
       }
     }
 
     const intervalId = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void loadNotifications()
-        void loadPendingOrders()
       }
     }, ADMIN_SIDEBAR_REFRESH_INTERVAL_MS)
 
@@ -284,7 +256,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       window.clearInterval(intervalId)
       socket.disconnect()
     }
-  }, [loadNotifications, loadPendingOrders, user])
+  }, [loadNotifications, user])
 
   const handleMarkNotificationAsRead = async (notificationId: number) => {
     try {
@@ -302,12 +274,49 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const handleMarkAllNotificationsAsRead = async () => {
+    try {
+      await notificationService.markAllAdminNotificationsAsRead()
+      setNotifications((currentNotifications) =>
+        currentNotifications.map((notification) =>
+          notification.is_read
+            ? notification
+            : {
+                ...notification,
+                is_read: true,
+              }
+        )
+      )
+    } catch {
+      // Ignore quiet sidebar action failure.
+    }
+  }
+
   const handleDeleteNotification = async (notificationId: number) => {
     try {
       await notificationService.deleteAdminNotification(notificationId)
       setNotifications((currentNotifications) =>
         currentNotifications.filter((notification) => notification.id !== notificationId)
       )
+    } catch {
+      // Ignore quiet sidebar action failure.
+    }
+  }
+
+  const handleClearNotifications = async () => {
+    const hasUnreadNotifications = unreadPendingOrders.length > 0
+
+    if (
+      hasUnreadNotifications &&
+      !window.confirm('Vẫn còn đơn chờ xác nhận chưa đọc. Bạn có chắc muốn xóa tất cả thông báo không?')
+    ) {
+      return
+    }
+
+    try {
+      await notificationService.clearAdminNotifications()
+      setNotifications([])
+      setShowReadNotifications(false)
     } catch {
       // Ignore quiet sidebar action failure.
     }
@@ -628,7 +637,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       }`}
                     >
                       <div className="flex flex-col gap-3">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-[var(--foreground)]">
                               {location.name}
@@ -715,6 +724,30 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 </Link>
               )
             })}
+
+            <button
+              type="button"
+              onClick={() => setIsAddressPanelOpen((currentValue) => !currentValue)}
+              className={`group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                isAddressPanelOpen
+                  ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[0_16px_30px_rgba(109,63,31,0.22)]"
+                  : "text-[var(--foreground)] hover:bg-[var(--panel-strong)]"
+              }`}
+            >
+              <MapPin
+                className={`h-4 w-4 transition ${
+                  isAddressPanelOpen
+                    ? "text-[var(--primary-foreground)]"
+                    : "text-[var(--muted)] group-hover:text-[var(--foreground)]"
+                }`}
+              />
+              <span className="flex-1 text-left">Địa chỉ cửa hàng</span>
+              <ChevronDown
+                className={`h-4 w-4 transition ${
+                  isAddressPanelOpen ? "rotate-180 text-[var(--primary-foreground)]" : "text-[var(--muted)]"
+                }`}
+              />
+            </button>
           </nav>
 
           <div className="mt-4 min-w-0 rounded-3xl border border-[var(--border)] bg-[var(--panel-strong)] p-4">
@@ -750,48 +783,47 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   Toàn cảnh vận hành cửa hàng
                 </h2>
               </div>
-              <div className="rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm text-[var(--muted)]">
-                URL quản trị:{" "}
-                <span className="font-semibold text-[var(--foreground)]">
-                  localhost:3001
-                </span>
-              </div>
-            </div>
-          </header>
 
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() =>
-                  setIsNotificationPanelOpen((currentValue) => !currentValue)
-                }
-                className="flex w-full max-w-[340px] items-center justify-between gap-3 rounded-[28px] border border-[var(--border)] bg-[rgba(255,253,248,0.92)] px-4 py-3 text-left shadow-[0_20px_40px_rgba(68,45,24,0.06)]"
-              >
-                <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-                    Thông báo
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
-                    {unreadPendingOrders.length > 0
-                      ? `${unreadPendingOrders.length} đơn chờ xác nhận`
-                      : "Không có thông báo mới"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIsNotificationPanelOpen((currentValue) => !currentValue)
+                  }
+                  className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-left shadow-[0_12px_28px_rgba(68,45,24,0.06)] transition hover:border-[var(--primary)]"
+                >
+                  <span className="rounded-2xl bg-[var(--panel)] p-2 text-[var(--foreground)]">
+                    <Bell className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                      Thông báo
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+                      {unreadPendingOrders.length > 0
+                        ? `${unreadPendingOrders.length} đơn chờ xác nhận`
+                        : "Không có thông báo mới"}
+                    </p>
+                  </div>
                   {unreadPendingOrders.length > 0 ? (
                     <span className="rounded-full bg-[var(--primary)] px-2.5 py-1 text-[11px] font-semibold text-[var(--primary-foreground)]">
                       {unreadPendingOrders.length}
                     </span>
                   ) : null}
-                  <span className="rounded-2xl bg-[var(--panel)] p-2 text-[var(--foreground)]">
-                    <Bell className="h-4 w-4" />
+                </button>
+
+                <div className="rounded-2xl border border-[var(--border)] bg-white px-4 py-3 text-sm text-[var(--muted)]">
+                  URL quản trị:{" "}
+                  <span className="font-semibold text-[var(--foreground)]">
+                    localhost:3001
                   </span>
                 </div>
-              </button>
+              </div>
             </div>
+          </header>
 
-            {storeLocationPanel}
+          <div className="space-y-4">
+            {isAddressPanelOpen ? storeLocationPanel : null}
             <main>{children}</main>
           </div>
         </div>
@@ -817,16 +849,40 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     : "Không có thông báo mới"}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsNotificationPanelOpen(false)}
-                className="rounded-2xl border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
-              >
-                Đóng
-              </button>
+              <div className="flex items-center gap-2">
+                {unreadPendingOrders.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleMarkAllNotificationsAsRead()
+                    }}
+                    className="rounded-2xl border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                  >
+                    Đọc tất cả
+                  </button>
+                ) : null}
+                {allPendingOrders.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleClearNotifications()
+                    }}
+                    className="rounded-2xl border border-[rgba(157,49,49,0.2)] px-3 py-2 text-xs font-semibold text-[var(--danger)] transition hover:bg-[rgba(157,49,49,0.08)]"
+                  >
+                    Xóa tất cả
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setIsNotificationPanelOpen(false)}
+                  className="rounded-2xl border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                >
+                  Đóng
+                </button>
+              </div>
             </div>
 
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 space-y-2">
               {unreadPendingOrders.length > 0 ? (
                 unreadPendingOrders.map((pendingOrder) => {
                   const matchedNotification = getPendingNotificationByOrderId(
@@ -836,9 +892,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   return (
                     <div
                       key={pendingOrder.id}
-                      className="rounded-2xl border border-[var(--border)] bg-white px-4 py-3"
+                      className="rounded-2xl border border-[var(--border)] bg-white px-3 py-2.5 shadow-sm"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--primary)]" />
@@ -864,7 +920,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                         ) : null}
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="mt-2 flex items-center justify-between gap-2">
                         <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--muted)]">
                           {pendingOrder.payment_status === "paid"
                             ? "Đã thanh toán"
@@ -877,7 +933,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                               setIsNotificationPanelOpen(false)
                               router.push(`/orders?focusOrderId=${pendingOrder.id}`)
                             }}
-                            className="rounded-full border border-[var(--border)] px-3 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                            className="rounded-full border border-[var(--border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
                           >
                             Mở đơn
                           </button>
@@ -889,7 +945,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                                   matchedNotification.id
                                 )
                               }}
-                              className="rounded-full bg-[var(--primary)] px-3 py-1.5 text-[11px] font-semibold text-[var(--primary-foreground)]"
+                              className="rounded-full bg-[var(--primary)] px-2.5 py-1 text-[10px] font-semibold text-[var(--primary-foreground)]"
                             >
                               Đã đọc
                             </button>
@@ -926,7 +982,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   </button>
 
                   {showReadNotifications ? (
-                    <div className="mt-3 max-h-72 space-y-3 overflow-y-auto pr-1">
+                    <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
                       {readPendingOrders.map((pendingOrder) => {
                         const matchedNotification = getPendingNotificationByOrderId(
                           Number(pendingOrder.id)
@@ -935,9 +991,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                         return (
                           <div
                             key={`read-${pendingOrder.id}`}
-                            className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3"
+                            className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-3 py-2.5"
                           >
-                            <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-semibold text-[var(--foreground)]">
                                   {pendingOrder.order_code}
@@ -960,7 +1016,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                               ) : null}
                             </div>
 
-                            <div className="mt-3 flex items-center justify-between gap-3">
+                            <div className="mt-2 flex items-center justify-between gap-2">
                               <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--muted)]">
                                 {pendingOrder.payment_status === "paid"
                                   ? "Đã thanh toán"
@@ -972,7 +1028,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                                   setIsNotificationPanelOpen(false)
                                   router.push(`/orders?focusOrderId=${pendingOrder.id}`)
                                 }}
-                                className="rounded-full border border-[var(--border)] px-3 py-1.5 text-[11px] font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                                className="rounded-full border border-[var(--border)] px-2.5 py-1 text-[10px] font-semibold text-[var(--foreground)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
                               >
                                 Mở đơn
                               </button>

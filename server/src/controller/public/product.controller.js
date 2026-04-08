@@ -209,10 +209,7 @@ class ProductController {
             status: 'available',
             categories: {
                 is: {
-                    name: {
-                        equals: category,
-                        mode: 'insensitive',
-                    },
+                    name: category,
                     status: 'active',
                 },
             },
@@ -288,6 +285,69 @@ class ProductController {
                 page: pageNum,
                 limit: limitNum,
             },
+        }).send(res);
+    }
+
+
+    async getProductById(req, res) {
+        const productId = Number(req.params.id);
+
+        if (Number.isNaN(productId)) {
+            throw new BadRequestError('ID s?n ph?m kh?ng h?p l?');
+        }
+
+        const product = await prisma.products.findFirst({
+            where: {
+                id: productId,
+                status: 'available',
+                categories: {
+                    is: {
+                        status: 'active',
+                    },
+                },
+            },
+            select: {
+                id: true,
+                name: true,
+                price: true,
+                image: true,
+                description: true,
+                sku: true,
+                status: true,
+                created_at: true,
+                updated_at: true,
+                categories: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                recipes: {
+                    select: {
+                        id: true,
+                        quantity_used: true,
+                        inventory: {
+                            select: {
+                                id: true,
+                                name: true,
+                                unit: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!product) {
+            throw new NotFoundError('S?n ph?m kh?ng t?n t?i');
+        }
+
+        const { soldCountMap, bestSellerIds } = await getProductSalesStats([product.id]);
+        const [normalizedProduct] = attachProductSales([product], soldCountMap, bestSellerIds);
+
+        new OK({
+            message: 'L?y chi ti?t s?n ph?m th?nh c?ng',
+            metadata: normalizedProduct,
         }).send(res);
     }
 

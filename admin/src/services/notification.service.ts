@@ -14,8 +14,18 @@ const notificationService = {
         return getPayload(response.data);
     },
 
+    async markAllAdminNotificationsAsRead(): Promise<{ count: number }> {
+        const response = await axiosInstance.patch<ApiResponse<{ count: number }>>('/admin/notifications/read-all');
+        return getPayload(response.data);
+    },
+
     async deleteAdminNotification(id: number): Promise<Notification> {
         const response = await axiosInstance.delete<ApiResponse<Notification>>(`/admin/notifications/${id}`);
+        return getPayload(response.data);
+    },
+
+    async clearAdminNotifications(): Promise<{ count: number }> {
+        const response = await axiosInstance.delete<ApiResponse<{ count: number }>>('/admin/notifications');
         return getPayload(response.data);
     },
 };

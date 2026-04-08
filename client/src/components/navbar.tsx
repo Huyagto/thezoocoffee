@@ -3,7 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, ChevronDown, Coffee, LogOut, Menu, ShoppingCart, Trash2, User, X } from 'lucide-react';
+import {
+    Bell,
+    ChevronDown,
+    Coffee,
+    LogOut,
+    Menu,
+    ShoppingCart,
+    Trash2,
+    User,
+    X,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/auth-context';
@@ -11,6 +21,8 @@ import { useCart } from '@/context/cart-context';
 import { getClientSocket, SOCKET_EVENTS } from '@/lib/socket';
 import notificationService from '@/services/notification.service';
 import type { Notification } from '@/types/api';
+
+const CLIENT_NOTIFICATION_REFRESH_INTERVAL_MS = 10000;
 
 const navLinks = [
     { href: '/', label: 'Trang chủ' },
@@ -39,12 +51,16 @@ function formatNotificationTime(value?: string) {
 function NotificationPanel({
     notifications,
     onMarkAsRead,
+    onMarkAllAsRead,
     onDelete,
+    onClearAll,
     onOpenOrder,
 }: {
     notifications: Notification[];
     onMarkAsRead: (id: number) => void;
+    onMarkAllAsRead: () => void;
     onDelete: (id: number) => void;
+    onClearAll: () => void;
     onOpenOrder: (notification: Notification) => void;
 }) {
     const [showReadNotifications, setShowReadNotifications] = useState(false);
@@ -56,9 +72,7 @@ function NotificationPanel({
         <div
             key={notification.id}
             className={`rounded-2xl border px-3 py-3 ${
-                notification.is_read
-                    ? 'border-border/80 bg-muted/35'
-                    : 'border-border bg-card shadow-sm'
+                notification.is_read ? 'border-border/80 bg-muted/35' : 'border-border bg-card shadow-sm'
             }`}
         >
             <div className="flex items-start justify-between gap-3">
@@ -131,18 +145,39 @@ function NotificationPanel({
                             : 'Không có thông báo mới'}
                     </p>
                 </div>
-                {readNotifications.length > 0 ? (
-                    <button
-                        type="button"
-                        onClick={() => setShowReadNotifications((currentValue) => !currentValue)}
-                        className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"
-                    >
-                        Đã đọc {readNotifications.length}
-                        <ChevronDown
-                            className={`h-3.5 w-3.5 transition ${showReadNotifications ? 'rotate-180' : ''}`}
-                        />
-                    </button>
-                ) : null}
+
+                <div className="flex items-center gap-2">
+                    {unreadNotifications.length > 0 ? (
+                        <button
+                            type="button"
+                            onClick={onMarkAllAsRead}
+                            className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold text-foreground transition hover:border-primary hover:text-primary"
+                        >
+                            Đọc tất cả
+                        </button>
+                    ) : null}
+                    {notifications.length > 0 ? (
+                        <button
+                            type="button"
+                            onClick={onClearAll}
+                            className="inline-flex items-center gap-1 rounded-full border border-destructive/30 px-3 py-1.5 text-[11px] font-semibold text-destructive transition hover:bg-destructive/10"
+                        >
+                            Xóa tất cả
+                        </button>
+                    ) : null}
+                    {readNotifications.length > 0 ? (
+                        <button
+                            type="button"
+                            onClick={() => setShowReadNotifications((currentValue) => !currentValue)}
+                            className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-[11px] font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"
+                        >
+                            Đã đọc {readNotifications.length}
+                            <ChevronDown
+                                className={`h-3.5 w-3.5 transition ${showReadNotifications ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+                    ) : null}
+                </div>
             </div>
 
             <div className="mt-4 space-y-3">
@@ -224,6 +259,11 @@ export function Navbar() {
         const handleRealtimeNotification = () => {
             void loadNotifications();
         };
+        const intervalId = window.setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                void loadNotifications();
+            }
+        }, CLIENT_NOTIFICATION_REFRESH_INTERVAL_MS);
 
         socket.connect();
         socket.on(SOCKET_EVENTS.USER_ORDER_STATUS_UPDATED, handleRealtimeNotification);
@@ -235,6 +275,7 @@ export function Navbar() {
             socket.off(SOCKET_EVENTS.USER_NOTIFICATION_CREATED, handleRealtimeNotification);
             socket.disconnect();
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.clearInterval(intervalId);
         };
     }, [currentUser, loadNotifications]);
 
@@ -262,12 +303,49 @@ export function Navbar() {
         }
     };
 
+    const handleMarkAllNotificationsAsRead = async () => {
+        try {
+            await notificationService.markAllAsRead();
+            setNotifications((currentNotifications) =>
+                currentNotifications.map((notification) =>
+                    notification.is_read
+                        ? notification
+                        : {
+                              ...notification,
+                              is_read: true,
+                              read_at: notification.read_at ?? new Date().toISOString(),
+                          }
+                )
+            );
+        } catch {
+            // Keep quiet in navbar.
+        }
+    };
+
     const handleDeleteNotification = async (notificationId: number) => {
         try {
             await notificationService.deleteNotification(notificationId);
             setNotifications((currentNotifications) =>
                 currentNotifications.filter((notification) => notification.id !== notificationId)
             );
+        } catch {
+            // Keep quiet in navbar.
+        }
+    };
+
+    const handleClearNotifications = async () => {
+        const hasUnreadNotifications = notifications.some((notification) => !notification.is_read);
+
+        if (
+            hasUnreadNotifications &&
+            !window.confirm('Bạn vẫn còn thông báo chưa đọc. Bạn có chắc muốn xóa tất cả không?')
+        ) {
+            return;
+        }
+
+        try {
+            await notificationService.clearNotifications();
+            setNotifications([]);
         } catch {
             // Keep quiet in navbar.
         }
@@ -331,7 +409,9 @@ export function Navbar() {
                                         <NotificationPanel
                                             notifications={notifications}
                                             onMarkAsRead={handleMarkNotificationAsRead}
+                                            onMarkAllAsRead={handleMarkAllNotificationsAsRead}
                                             onDelete={handleDeleteNotification}
+                                            onClearAll={handleClearNotifications}
                                             onOpenOrder={handleOpenOrderFromNotification}
                                         />
                                     </div>
@@ -361,7 +441,10 @@ export function Navbar() {
                                 </Button>
                             </Link>
                             <Link href="/register">
-                                <Button variant="outline" className="border-primary/30 text-foreground hover:bg-primary/5">
+                                <Button
+                                    variant="outline"
+                                    className="border-primary/30 text-foreground hover:bg-primary/5"
+                                >
                                     Đăng ký
                                 </Button>
                             </Link>
@@ -369,7 +452,11 @@ export function Navbar() {
                     )}
 
                     <Link href="/cart">
-                        <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="relative text-muted-foreground hover:text-foreground"
+                        >
                             <ShoppingCart className="h-5 w-5" />
                             {totalItems > 0 ? (
                                 <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
@@ -381,7 +468,9 @@ export function Navbar() {
                     </Link>
 
                     <Link href="/menu">
-                        <Button className="bg-primary text-primary-foreground hover:bg-primary/90">Đặt hàng ngay</Button>
+                        <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
+                            Đặt hàng ngay
+                        </Button>
                     </Link>
                 </div>
 
@@ -427,7 +516,9 @@ export function Navbar() {
                     <NotificationPanel
                         notifications={notifications}
                         onMarkAsRead={handleMarkNotificationAsRead}
+                        onMarkAllAsRead={handleMarkAllNotificationsAsRead}
                         onDelete={handleDeleteNotification}
+                        onClearAll={handleClearNotifications}
                         onOpenOrder={handleOpenOrderFromNotification}
                     />
                 </div>
@@ -451,12 +542,19 @@ export function Navbar() {
                             {currentUser ? (
                                 <>
                                     <Link href="/profile" onClick={() => setMobileMenuOpen(false)}>
-                                        <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground">
+                                        <Button
+                                            variant="ghost"
+                                            className="w-full justify-start gap-2 text-muted-foreground"
+                                        >
                                             <User className="h-4 w-4" />
                                             {currentUser.name}
                                         </Button>
                                     </Link>
-                                    <Button variant="outline" className="w-full justify-start gap-2" onClick={handleLogout}>
+                                    <Button
+                                        variant="outline"
+                                        className="w-full justify-start gap-2"
+                                        onClick={handleLogout}
+                                    >
                                         <LogOut className="h-4 w-4" />
                                         Đăng xuất
                                     </Button>
@@ -470,7 +568,10 @@ export function Navbar() {
                                         </Button>
                                     </Link>
                                     <Link href="/register" onClick={() => setMobileMenuOpen(false)}>
-                                        <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground">
+                                        <Button
+                                            variant="ghost"
+                                            className="w-full justify-start gap-2 text-muted-foreground"
+                                        >
                                             Tạo tài khoản
                                         </Button>
                                     </Link>
@@ -478,7 +579,9 @@ export function Navbar() {
                             )}
 
                             <Link href="/menu" onClick={() => setMobileMenuOpen(false)}>
-                                <Button className="w-full bg-primary text-primary-foreground">Đặt hàng ngay</Button>
+                                <Button className="w-full bg-primary text-primary-foreground">
+                                    Đặt hàng ngay
+                                </Button>
                             </Link>
                         </div>
                     </div>

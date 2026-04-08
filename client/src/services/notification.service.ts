@@ -16,8 +16,18 @@ const notificationService = {
     return getPayload(response.data)
   },
 
+  async markAllAsRead(): Promise<{ count: number }> {
+    const response = await axiosInstance.patch<ApiResponse<{ count: number }>>('/user/notifications/read-all')
+    return getPayload(response.data)
+  },
+
   async deleteNotification(id: number): Promise<Notification> {
     const response = await axiosInstance.delete<ApiResponse<Notification>>(`/user/notifications/${id}`)
+    return getPayload(response.data)
+  },
+
+  async clearNotifications(): Promise<{ count: number }> {
+    const response = await axiosInstance.delete<ApiResponse<{ count: number }>>('/user/notifications')
     return getPayload(response.data)
   },
 }

@@ -1,6 +1,11 @@
 const prisma = require('../../config/prisma');
-const { BadRequestError, ForbiddenError, NotFoundError } = require('../../core/error.response');
+const {
+    BadRequestError,
+    ForbiddenError,
+    NotFoundError,
+} = require('../../core/error.response');
 const { OK } = require('../../core/success.response');
+const { normalizeNotification } = require('../../services/notification.service');
 
 class NotificationUserController {
     async getMyNotifications(req, res) {
@@ -29,7 +34,7 @@ class NotificationUserController {
 
         new OK({
             message: 'Lấy thông báo của bạn thành công',
-            metadata: notifications,
+            metadata: notifications.map(normalizeNotification),
         }).send(res);
     }
 
@@ -42,9 +47,7 @@ class NotificationUserController {
         }
 
         const notification = await prisma.notifications.findUnique({
-            where: {
-                id: notificationId,
-            },
+            where: { id: notificationId },
         });
 
         if (!notification || notification.is_deleted) {
@@ -70,6 +73,32 @@ class NotificationUserController {
         }).send(res);
     }
 
+    async markAllAsRead(req, res) {
+        const userId = Number(req.user?.userId || req.user?.id);
+        const now = new Date();
+
+        const result = await prisma.notifications.updateMany({
+            where: {
+                audience: 'user',
+                user_id: userId,
+                is_deleted: false,
+                is_read: false,
+            },
+            data: {
+                is_read: true,
+                read_at: now,
+                updated_at: now,
+            },
+        });
+
+        new OK({
+            message: 'Đã đánh dấu tất cả thông báo là đã đọc',
+            metadata: {
+                count: result.count,
+            },
+        }).send(res);
+    }
+
     async deleteNotification(req, res) {
         const userId = Number(req.user?.userId || req.user?.id);
         const notificationId = Number(req.params.id);
@@ -79,9 +108,7 @@ class NotificationUserController {
         }
 
         const notification = await prisma.notifications.findUnique({
-            where: {
-                id: notificationId,
-            },
+            where: { id: notificationId },
         });
 
         if (!notification || notification.is_deleted) {
@@ -103,6 +130,29 @@ class NotificationUserController {
         new OK({
             message: 'Đã xóa thông báo',
             metadata: updatedNotification,
+        }).send(res);
+    }
+
+    async clearNotifications(req, res) {
+        const userId = Number(req.user?.userId || req.user?.id);
+
+        const result = await prisma.notifications.updateMany({
+            where: {
+                audience: 'user',
+                user_id: userId,
+                is_deleted: false,
+            },
+            data: {
+                is_deleted: true,
+                updated_at: new Date(),
+            },
+        });
+
+        new OK({
+            message: 'Đã xóa tất cả thông báo',
+            metadata: {
+                count: result.count,
+            },
         }).send(res);
     }
 }

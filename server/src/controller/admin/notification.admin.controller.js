@@ -1,7 +1,11 @@
 const prisma = require('../../config/prisma');
 const { BadRequestError, NotFoundError } = require('../../core/error.response');
 const { OK } = require('../../core/success.response');
-const { NOTIFICATION_TYPE } = require('../../services/notification.service');
+const {
+    NOTIFICATION_TYPE,
+    buildAdminPendingNotificationContent,
+    normalizeNotification,
+} = require('../../services/notification.service');
 
 class NotificationAdminController {
     async getNotifications(req, res) {
@@ -41,8 +45,7 @@ class NotificationAdminController {
                         order_id: order.id,
                         audience: 'admin',
                         type: NOTIFICATION_TYPE.ORDER_PENDING_CONFIRMATION,
-                        title: 'Có đơn hàng mới cần xác nhận',
-                        message: `Đơn ${order.order_code} đang chờ admin xác nhận trước khi chuyển sang chuẩn bị.`,
+                        ...buildAdminPendingNotificationContent(order.order_code),
                         is_read: false,
                         is_deleted: false,
                         read_at: null,
@@ -73,7 +76,7 @@ class NotificationAdminController {
 
         new OK({
             message: 'Lấy thông báo admin thành công',
-            metadata: notifications,
+            metadata: notifications.map(normalizeNotification),
         }).send(res);
     }
 
@@ -111,6 +114,30 @@ class NotificationAdminController {
         }).send(res);
     }
 
+    async markAllAsRead(req, res) {
+        const now = new Date();
+
+        const result = await prisma.notifications.updateMany({
+            where: {
+                audience: 'admin',
+                is_deleted: false,
+                is_read: false,
+            },
+            data: {
+                is_read: true,
+                read_at: now,
+                updated_at: now,
+            },
+        });
+
+        new OK({
+            message: 'Đã đánh dấu tất cả thông báo là đã đọc',
+            metadata: {
+                count: result.count,
+            },
+        }).send(res);
+    }
+
     async deleteNotification(req, res) {
         const notificationId = Number(req.params.id);
 
@@ -141,6 +168,26 @@ class NotificationAdminController {
         new OK({
             message: 'Đã xóa thông báo',
             metadata: updatedNotification,
+        }).send(res);
+    }
+
+    async clearNotifications(req, res) {
+        const result = await prisma.notifications.updateMany({
+            where: {
+                audience: 'admin',
+                is_deleted: false,
+            },
+            data: {
+                is_deleted: true,
+                updated_at: new Date(),
+            },
+        });
+
+        new OK({
+            message: 'Đã xóa tất cả thông báo',
+            metadata: {
+                count: result.count,
+            },
         }).send(res);
     }
 }
